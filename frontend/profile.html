@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .profile-container { max-width: 800px; margin: 40px auto; }
+        .profile-card { background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 4px 20px rgba(76, 175, 127, 0.08); }
+        .profile-header { background: linear-gradient(135deg, #4caf7f 0%, #7ec8e0 100%); padding: 40px; text-align: center; color: white; }
+        .profile-avatar { font-size: 80px; background: rgba(255,255,255,0.2); width: 120px; height: 120px; border-radius: 60px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .profile-name { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+        .profile-credit { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 14px; }
+        .profile-body { padding: 30px; }
+        .info-section { margin-bottom: 30px; }
+        .info-section h3 { font-size: 18px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e0ede6; }
+        .info-row { display: flex; margin-bottom: 16px; padding: 8px 0; border-bottom: 1px solid #f0f5f2; }
+        .info-label { width: 100px; color: #7a8a8a; }
+        .info-value { flex: 1; }
+        .edit-btn { color: #4caf7f; cursor: pointer; font-size: 14px; }
+        .edit-form { display: none; margin-top: 20px; padding: 20px; background: #f8fcf9; border-radius: 20px; }
+        .edit-form.active { display: block; }
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+        .stat-item { background: #f8fcf9; padding: 20px; border-radius: 20px; text-align: center; }
+        .stat-number { font-size: 28px; font-weight: bold; color: #4caf7f; }
+        .stat-label { font-size: 12px; color: #7a8a8a; margin-top: 5px; }
+        .address-item { background: #f8fcf9; padding: 15px; border-radius: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .address-default { background: #e8f5ef; border: 1px solid #4caf7f; }
+        .default-badge { background: #4caf7f; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; margin-left: 10px; }
+        .add-address-btn { margin-top: 15px; padding: 10px; width: 100%; background: #f0f5f2; border: 1px dashed #4caf7f; border-radius: 16px; cursor: pointer; color: #4caf7f; }
+        .loading { text-align: center; padding: 40px; color: #7a8a8a; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container profile-container">
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="profile-avatar">👤</div>
+                <div class="profile-name" id="nickname">加载中...</div>
+                <div class="profile-credit" id="credit">信誉分: --</div>
+            </div>
+            <div class="profile-body">
+                <div class="info-section">
+                    <h3>📋 账户信息</h3>
+                    <div class="info-row"><div class="info-label">用户名</div><div class="info-value" id="username">--</div></div>
+                    <div class="info-row"><div class="info-label">手机号</div><div class="info-value" id="phone">--</div><div class="edit-btn" onclick="showEditPhone()">修改</div></div>
+                    <div class="info-row"><div class="info-label">注册时间</div><div class="info-value" id="createTime">--</div></div>
+                    <div class="info-row"><div class="info-label">密码</div><div class="info-value">●●●●●●</div><div class="edit-btn" onclick="showEditPassword()">修改</div></div>
+                </div>
+
+                <div id="editPhoneForm" class="edit-form">
+                    <h4>修改手机号</h4>
+                    <div class="form-group"><input type="tel" id="newPhone" placeholder="新手机号"></div>
+                    <button class="btn btn-primary" onclick="updatePhone()">保存</button>
+                    <button class="btn btn-outline" onclick="hideEditPhone()">取消</button>
+                </div>
+
+                <div id="editPasswordForm" class="edit-form">
+                    <h4>修改密码</h4>
+                    <div class="form-group"><input type="password" id="oldPassword" placeholder="原密码"></div>
+                    <div class="form-group"><input type="password" id="newPassword" placeholder="新密码"></div>
+                    <div class="form-group"><input type="password" id="confirmPassword" placeholder="确认新密码"></div>
+                    <button class="btn btn-primary" onclick="updatePassword()">保存</button>
+                    <button class="btn btn-outline" onclick="hideEditPassword()">取消</button>
+                </div>
+
+                <div class="info-section">
+                    <h3>📊 我的数据</h3>
+                    <div class="stats-row">
+                        <div class="stat-item"><div class="stat-number" id="productCount">0</div><div class="stat-label">发布商品</div></div>
+                        <div class="stat-item"><div class="stat-number" id="buyOrderCount">0</div><div class="stat-label">买的订单</div></div>
+                        <div class="stat-item"><div class="stat-number" id="sellOrderCount">0</div><div class="stat-label">卖出的订单</div></div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>📍 收货地址</h3>
+                    <div id="addressList"></div>
+                    <button class="add-address-btn" onclick="showAddAddress()">+ 添加新地址</button>
+                </div>
+
+                <div id="addAddressForm" class="edit-form">
+                    <h4>添加收货地址</h4>
+                    <div class="form-group"><input type="text" id="newAddressName" placeholder="收货人姓名"></div>
+                    <div class="form-group"><input type="tel" id="newAddressPhone" placeholder="收货人电话"></div>
+                    <div class="form-group"><input type="text" id="newAddressDetail" placeholder="详细地址"></div>
+                    <div class="form-group"><label><input type="checkbox" id="setDefault"> 设为默认地址</label></div>
+                    <button class="btn btn-primary" onclick="addAddress()">保存</button>
+                    <button class="btn btn-outline" onclick="hideAddAddress()">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        if (!currentUser || currentUser.role === 'admin') { 
+            alert('请使用普通账号登录'); 
+            window.location.href = 'login.html'; 
+        }
+
+        let users = [];
+        let products = [];
+        let orders = [];
+        let addresses = JSON.parse(localStorage.getItem(`addresses_${currentUser.id}`)) || [];
+
+        function logout() { 
+            localStorage.removeItem('currentUser'); 
+            window.location.href = 'login.html'; 
+        }
+        
+        function goToProfile() { 
+            window.location.href = 'profile.html'; 
+        }
+
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                // 获取用户列表
+                const userRes = await fetch(`${API_URL}/users`);
+                const userData = await userRes.json();
+                if (userData.success) {
+                    users = userData.data;
+                    const user = users.find(u => u.id === currentUser.id);
+                    if (user) {
+                        currentUser = user;
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    }
+                }
+                
+                // 获取商品列表
+                const productRes = await fetch(`${API_URL}/products`);
+                const productData = await productRes.json();
+                if (productData.success) {
+                    products = productData.data;
+                }
+                
+                // 获取订单列表
+                try {
+                    const orderRes = await fetch(`${API_URL}/orders?userId=${currentUser.id}`);
+                    const orderData = await orderRes.json();
+                    if (orderData.success) {
+                        orders = orderData.data;
+                    }
+                } catch (e) {
+                    console.log('订单接口暂不可用');
+                }
+                
+                document.getElementById('nickname').textContent = currentUser.nickname;
+                document.getElementById('username').textContent = currentUser.username;
+                document.getElementById('phone').textContent = currentUser.phone;
+                document.getElementById('credit').textContent = `信誉分: ${currentUser.credit || 80}`;
+                document.getElementById('createTime').textContent = currentUser.create_time?.split('T')[0] || '2026-04-01';
+                
+                const userProducts = products.filter(p => p.seller_id === currentUser.id);
+                const buyOrders = orders.filter(o => o.buyer_id === currentUser.id);
+                const sellOrders = orders.filter(o => o.seller_id === currentUser.id);
+                
+                document.getElementById('productCount').textContent = userProducts.length;
+                document.getElementById('buyOrderCount').textContent = buyOrders.length;
+                document.getElementById('sellOrderCount').textContent = sellOrders.length;
+            } catch (error) {
+                console.error('加载失败:', error);
+            }
+        }
+
+        // 修改手机号（更新后端）
+        async function updatePhone() {
+            const newPhone = document.getElementById('newPhone').value;
+            if (!/^1[3-9]\d{9}$/.test(newPhone)) { 
+                alert('请输入正确的手机号'); 
+                return; 
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/users/${currentUser.id}/phone`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: newPhone })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    currentUser.phone = newPhone;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    document.getElementById('phone').textContent = newPhone;
+                    hideEditPhone();
+                    alert('修改成功');
+                } else {
+                    alert('修改失败：' + result.message);
+                }
+            } catch (error) {
+                alert('网络错误，请重试');
+            }
+        }
+
+        // 修改密码（更新后端）
+        async function updatePassword() {
+            const oldPwd = document.getElementById('oldPassword').value;
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+            
+            if (oldPwd !== currentUser.password) { 
+                alert('原密码错误'); 
+                return; 
+            }
+            if (newPwd.length < 6) { 
+                alert('新密码至少6位'); 
+                return; 
+            }
+            if (newPwd !== confirmPwd) { 
+                alert('两次密码不一致'); 
+                return; 
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/users/${currentUser.id}/password`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: newPwd })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    currentUser.password = newPwd;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    hideEditPassword();
+                    alert('修改成功');
+                } else {
+                    alert('修改失败：' + result.message);
+                }
+            } catch (error) {
+                alert('网络错误，请重试');
+            }
+        }
+
+        function showEditPhone() { document.getElementById('editPhoneForm').classList.add('active'); }
+        function hideEditPhone() { document.getElementById('editPhoneForm').classList.remove('active'); document.getElementById('newPhone').value = ''; }
+        
+        function showEditPassword() { document.getElementById('editPasswordForm').classList.add('active'); }
+        function hideEditPassword() { 
+            document.getElementById('editPasswordForm').classList.remove('active'); 
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+
+        function renderAddresses() {
+            const container = document.getElementById('addressList');
+            if (addresses.length === 0) { 
+                container.innerHTML = '<div style="color:#7a8a8a; text-align:center; padding:20px;">暂无收货地址</div>'; 
+                return; 
+            }
+            container.innerHTML = addresses.map((addr, idx) => `
+                <div class="address-item ${addr.isDefault ? 'address-default' : ''}">
+                    <div><strong>${escapeHtml(addr.name)}</strong> ${addr.phone}<br><span style="font-size:13px;">${escapeHtml(addr.address)}</span>${addr.isDefault ? '<span class="default-badge">默认</span>' : ''}</div>
+                    <div>${!addr.isDefault ? `<button onclick="setDefault(${idx})" style="color:#4caf7f;">设默认</button>` : ''}<button onclick="deleteAddress(${idx})" style="color:#f28b82;">删除</button></div>
+                </div>
+            `).join('');
+        }
+
+        function showAddAddress() { document.getElementById('addAddressForm').classList.add('active'); }
+        
+        function hideAddAddress() { 
+            document.getElementById('addAddressForm').classList.remove('active'); 
+            document.getElementById('newAddressName').value = ''; 
+            document.getElementById('newAddressPhone').value = ''; 
+            document.getElementById('newAddressDetail').value = ''; 
+            document.getElementById('setDefault').checked = false; 
+        }
+        
+        function addAddress() {
+            const name = document.getElementById('newAddressName').value.trim();
+            const phone = document.getElementById('newAddressPhone').value.trim();
+            const address = document.getElementById('newAddressDetail').value.trim();
+            const isDefault = document.getElementById('setDefault').checked;
+            if (!name || !phone || !address) { alert('请填写完整信息'); return; }
+            if (!/^1[3-9]\d{9}$/.test(phone)) { alert('请输入正确手机号'); return; }
+            if (isDefault) addresses.forEach(a => a.isDefault = false);
+            addresses.push({ name, phone, address, isDefault });
+            localStorage.setItem(`addresses_${currentUser.id}`, JSON.stringify(addresses));
+            renderAddresses();
+            hideAddAddress();
+        }
+        
+        function setDefault(idx) { 
+            addresses.forEach((a, i) => a.isDefault = (i === idx)); 
+            localStorage.setItem(`addresses_${currentUser.id}`, JSON.stringify(addresses)); 
+            renderAddresses(); 
+        }
+        
+        function deleteAddress(idx) { 
+            if (confirm('删除地址？')) { 
+                addresses.splice(idx, 1); 
+                localStorage.setItem(`addresses_${currentUser.id}`, JSON.stringify(addresses)); 
+                renderAddresses(); 
+            } 
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        loadProfile(); 
+        renderAddresses(); 
+        updateNavBar();
+        
+        window.logout = logout; 
+        window.goToProfile = goToProfile; 
+        window.showEditPhone = showEditPhone; 
+        window.hideEditPhone = hideEditPhone; 
+        window.updatePhone = updatePhone;
+        window.showEditPassword = showEditPassword; 
+        window.hideEditPassword = hideEditPassword; 
+        window.updatePassword = updatePassword;
+        window.showAddAddress = showAddAddress; 
+        window.hideAddAddress = hideAddAddress; 
+        window.addAddress = addAddress; 
+        window.setDefault = setDefault; 
+        window.deleteAddress = deleteAddress;
+    </script>
+</body>
+</html>

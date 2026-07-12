@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绿屿 - 校园二手交易平台</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="search-bar">
+                <input type="text" placeholder="搜索商品标题、描述或卖家..." id="searchInput">
+                <button onclick="searchProducts()">找一找</button>
+            </div>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="category-nav">
+            <ul class="category-list">
+                <li class="active" data-category="all">推荐</li>
+                <li data-category="数码">数码</li>
+                <li data-category="服饰">服饰</li>
+                <li data-category="图书">图书</li>
+                <li data-category="生活">生活用品</li>
+            </ul>
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+    </div>
+
+    <script>
+        // 后端 API 地址
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        
+        let products = [];
+        let currentCategory = 'all';
+
+        // ========== 退出登录 ==========
+        function logout() { 
+            localStorage.removeItem('currentUser'); 
+            window.location.href = 'login.html'; 
+        }
+
+        // ========== 点击昵称跳转 ==========
+        function goToProfile() {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+            if (currentUser.role === 'admin') {
+                window.location.href = 'admin.html';
+            } else {
+                window.location.href = 'profile.html';
+            }
+        }
+
+        // ========== 更新导航栏 ==========
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                authLink.style.color = '';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        // ========== 从后端加载商品 ==========
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    products = result.data;
+                    renderProducts(currentCategory, '');
+                } else {
+                    console.error('加载商品失败:', result.message);
+                }
+            } catch (error) {
+                console.error('网络错误:', error);
+                document.getElementById('productGrid').innerHTML = '<div class="empty-state"><div class="emoji">⚠️</div><h3>无法连接后端服务</h3><p>请确保后端服务已启动</p></div>';
+            }
+        }
+
+        // ========== 渲染商品 ==========
+        function renderProducts(cat = 'all', kw = '') {
+            let f = products.filter(p => p.status === '在售');
+            
+            if (cat !== 'all') {
+                f = f.filter(p => p.category === cat);
+            }
+            
+            if (kw && kw.trim() !== '') {
+                const lowerKw = kw.toLowerCase().trim();
+                f = f.filter(p => 
+                    p.title.toLowerCase().includes(lowerKw) || 
+                    (p.description && p.description.toLowerCase().includes(lowerKw)) ||
+                    (p.seller_name && p.seller_name.toLowerCase().includes(lowerKw))
+                );
+            }
+            
+            const grid = document.getElementById('productGrid');
+            if (!f.length) {
+                grid.innerHTML = `<div class="empty-state"><div class="emoji">🔍</div><h3>没有找到相关商品</h3><p>试试其他关键词吧~</p></div>`;
+                return;
+            }
+            
+            grid.innerHTML = f.map(p => `
+                <div class="product-card" onclick="goToDetail(${p.id})">
+                    <div class="product-img">${p.image || '📦'}</div>
+                    <div class="product-info">
+                        <div class="product-title">${escapeHtml(p.title)}</div>
+                        <div class="product-price">${p.price}</div>
+                        <div class="product-meta">
+                            <span>${p.condition || '未知'}</span>
+                            <span>${p.seller_name || '未知卖家'}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // ========== 搜索 ==========
+        function searchProducts() { 
+            renderProducts(currentCategory, document.getElementById('searchInput').value); 
+        }
+
+        // ========== 跳转详情页 ==========
+        function goToDetail(id) { 
+            window.location.href = `product-detail.html?id=${id}`; 
+        }
+
+        // ========== 分类切换 ==========
+        document.querySelectorAll('.category-list li').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.category-list li').forEach(li => li.classList.remove('active'));
+                this.classList.add('active');
+                currentCategory = this.dataset.category;
+                renderProducts(currentCategory, '');
+            });
+        });
+
+        // ========== 初始化 ==========
+        loadProducts();
+        updateNavBar();
+        
+        window.searchProducts = searchProducts;
+        window.goToDetail = goToDetail;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+    </script>
+</body>
+</html>

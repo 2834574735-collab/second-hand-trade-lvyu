@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 绿屿二手</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .register-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #e8f5ef 0%, #d4e8df 100%); }
+        .register-card { background: white; padding: 40px; border-radius: 32px; width: 100%; max-width: 450px; }
+        .register-card h2 { text-align: center; margin-bottom: 32px; }
+        .register-card .btn-primary { width: 100%; padding: 14px; }
+        .login-link { text-align: center; margin-top: 24px; }
+        .login-link a { color: #4caf7f; text-decoration: none; }
+        .error-msg { color: #f28b82; font-size: 14px; margin-top: 16px; text-align: center; }
+        .loading { opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-card">
+            <h2>🌿 注册新账号</h2>
+            <form id="registerForm">
+                <div class="form-group"><label>用户名（4-20字符）*</label><input type="text" id="username" placeholder="字母、数字、下划线" required></div>
+                <div class="form-group"><label>昵称 *</label><input type="text" id="nickname" placeholder="界面显示名称" required></div>
+                <div class="form-group"><label>手机号 *</label><input type="tel" id="phone" placeholder="11位手机号" required></div>
+                <div class="form-group"><label>邮箱 *</label><input type="email" id="email" placeholder="用于找回密码，请填写真实邮箱" required></div>
+                <div class="form-group"><label>密码 *</label><input type="password" id="password" placeholder="6-20位" required></div>
+                <div class="form-group"><label>确认密码 *</label><input type="password" id="confirmPassword" placeholder="再次输入密码" required></div>
+                <button type="submit" class="btn btn-primary" id="registerBtn">注册</button>
+                <div class="login-link"><a href="login.html">已有账号？立即登录</a></div>
+                <div id="errorMsg" class="error-msg"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const nickname = document.getElementById('nickname').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const registerBtn = document.getElementById('registerBtn');
+            const errorMsg = document.getElementById('errorMsg');
+            
+            errorMsg.textContent = '';
+            
+            if (!/^[a-zA-Z0-9_]{4,20}$/.test(username)) {
+                errorMsg.textContent = '用户名必须是4-20位字母、数字或下划线';
+                return;
+            }
+            if (!nickname) {
+                errorMsg.textContent = '请输入昵称';
+                return;
+            }
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                errorMsg.textContent = '请输入正确的11位手机号';
+                return;
+            }
+            if (!email) {
+                errorMsg.textContent = '请输入邮箱';
+                return;
+            }
+            if (!/^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/.test(email)) {
+                errorMsg.textContent = '请输入正确的邮箱格式';
+                return;
+            }
+            if (password.length < 6) {
+                errorMsg.textContent = '密码长度不能少于6位';
+                return;
+            }
+            if (password !== confirmPassword) {
+                errorMsg.textContent = '两次输入的密码不一致';
+                return;
+            }
+            
+            registerBtn.textContent = '注册中...';
+            registerBtn.classList.add('loading');
+            
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, nickname, phone, email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('注册成功！请登录');
+                    window.location.href = 'login.html';
+                } else {
+                    errorMsg.textContent = result.message || '注册失败';
+                }
+            } catch (error) {
+                console.error('注册失败:', error);
+                errorMsg.textContent = '网络错误，请确保后端服务已启动';
+            } finally {
+                registerBtn.textContent = '注册';
+                registerBtn.classList.remove('loading');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户主页 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .profile-container { max-width: 800px; margin: 40px auto; }
+        .profile-card { background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 4px 20px rgba(76, 175, 127, 0.08); }
+        .profile-header { background: linear-gradient(135deg, #4caf7f 0%, #7ec8e0 100%); padding: 40px; text-align: center; color: white; }
+        .profile-avatar { font-size: 80px; background: rgba(255,255,255,0.2); width: 120px; height: 120px; border-radius: 60px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .profile-name { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+        .profile-credit { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 14px; }
+        .profile-body { padding: 30px; }
+        .info-section { margin-bottom: 30px; }
+        .info-section h3 { font-size: 18px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e0ede6; }
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+        .stat-item { background: #f8fcf9; padding: 20px; border-radius: 20px; text-align: center; }
+        .stat-number { font-size: 28px; font-weight: bold; color: #4caf7f; }
+        .stat-label { font-size: 12px; color: #7a8a8a; margin-top: 5px; }
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 20px; }
+        .product-card-small { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #e0ede6; cursor: pointer; transition: all 0.2s; }
+        .product-card-small:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(76,175,127,0.12); }
+        .product-card-small .product-img { height: 120px; background: #f8fcf9; display: flex; align-items: center; justify-content: center; font-size: 48px; }
+        .product-card-small .product-info { padding: 12px; }
+        .product-card-small .product-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .product-card-small .product-price { color: #4caf7f; font-size: 16px; font-weight: bold; }
+        .back-btn { display: inline-block; padding: 8px 20px; background: #f0f5f2; border-radius: 40px; color: #4caf7f; text-decoration: none; margin-bottom: 20px; cursor: pointer; }
+        .report-btn { padding: 8px 20px; background: #fff3e0; color: #ff9800; border-radius: 40px; border: none; cursor: pointer; margin-top: 15px; }
+        .loading { text-align: center; padding: 40px; color: #7a8a8a; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container profile-container">
+        <a href="javascript:history.back()" class="back-btn">← 返回</a>
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="profile-avatar">👤</div>
+                <div class="profile-name" id="nickname">加载中...</div>
+                <div class="profile-credit" id="credit">信誉分: --</div>
+            </div>
+            <div class="profile-body">
+                <div class="info-section">
+                    <h3>📊 用户数据</h3>
+                    <div class="stats-row">
+                        <div class="stat-item"><div class="stat-number" id="productCount">0</div><div class="stat-label">发布商品</div></div>
+                        <div class="stat-item"><div class="stat-number" id="sellCount">0</div><div class="stat-label">卖出订单</div></div>
+                        <div class="stat-item"><div class="stat-number" id="ratingScore">--</div><div class="stat-label">信用评级</div></div>
+                    </div>
+                    <button class="report-btn" id="reportUserBtn" onclick="reportUser()">⚠️ 举报该用户</button>
+                </div>
+                <div class="info-section">
+                    <h3>📦 在售商品</h3>
+                    <div class="product-grid" id="productsGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        let users = [];
+        let products = [];
+        let orders = [];
+        const userId = parseInt(new URLSearchParams(window.location.search).get('userId'));
+
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+        
+        function goToProfile() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            if (!u) { window.location.href = 'login.html'; return; }
+            window.location.href = u.role === 'admin' ? 'admin.html' : 'profile.html';
+        }
+        
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+        
+        function goToDetail(id) { 
+            window.location.href = `product-detail.html?id=${id}`; 
+        }
+        
+        function reportUser() {
+            if (!currentUser) { 
+                if(confirm('请先登录')) window.location.href='login.html'; 
+                return; 
+            }
+            if (currentUser.id === userId) { 
+                alert('不能举报自己'); 
+                return; 
+            }
+            const reason = prompt('请输入举报原因：');
+            if (!reason) return;
+            let reports = JSON.parse(localStorage.getItem('reports')) || [];
+            const targetUser = users.find(u => u.id === userId);
+            if (!targetUser) { 
+                alert('用户不存在'); 
+                return; 
+            }
+            reports.push({ 
+                id: Date.now(), 
+                reporter: currentUser.nickname, 
+                reporterId: currentUser.id, 
+                target: targetUser.nickname, 
+                targetId: userId, 
+                type: '用户举报', 
+                reason, 
+                time: new Date().toISOString().split('T')[0], 
+                status: '待处理' 
+            });
+            localStorage.setItem('reports', JSON.stringify(reports));
+            alert('举报已提交');
+        }
+        
+        async function loadUserProfile() {
+            try {
+                // 获取用户列表
+                const userRes = await fetch(`${API_URL}/users`);
+                const userData = await userRes.json();
+                if (userData.success) {
+                    users = userData.data;
+                }
+                
+                // 获取商品列表
+                const productRes = await fetch(`${API_URL}/products`);
+                const productData = await productRes.json();
+                if (productData.success) {
+                    products = productData.data;
+                }
+                
+                // 获取订单列表（可选，用于卖出订单统计）
+                try {
+                    const orderRes = await fetch(`${API_URL}/orders?userId=${userId}`);
+                    const orderData = await orderRes.json();
+                    if (orderData.success) {
+                        orders = orderData.data;
+                    }
+                } catch (e) {
+                    console.log('订单接口暂不可用');
+                }
+                
+                const user = users.find(u => u.id === userId);
+                if (!user) { 
+                    alert('用户不存在'); 
+                    window.location.href = 'index.html'; 
+                    return; 
+                }
+                
+                document.getElementById('nickname').textContent = user.nickname;
+                document.getElementById('credit').textContent = `信誉分: ${user.credit || 80}`;
+                
+                const userProducts = products.filter(p => p.seller_id === userId && p.status === '在售');
+                const sellOrders = orders.filter(o => o.seller_id === userId && o.status === '已完成');
+                
+                document.getElementById('productCount').textContent = userProducts.length;
+                document.getElementById('sellCount').textContent = sellOrders.length;
+                document.getElementById('ratingScore').textContent = (user.credit || 80) >= 90 ? '优秀' : (user.credit || 80) >= 70 ? '良好' : '一般';
+                
+                const grid = document.getElementById('productsGrid');
+                if (!userProducts.length) { 
+                    grid.innerHTML = '<div style="color:#7a8a8a;text-align:center;padding:20px;">暂无在售商品</div>'; 
+                    return; 
+                }
+                grid.innerHTML = userProducts.map(p => `
+                    <div class="product-card-small" onclick="goToDetail(${p.id})">
+                        <div class="product-img">${p.image || '📦'}</div>
+                        <div class="product-info">
+                            <div class="product-title">${escapeHtml(p.title)}</div>
+                            <div class="product-price">¥${p.price}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('加载失败:', error);
+                document.getElementById('productsGrid').innerHTML = '<div style="color:#f28b82;text-align:center;padding:20px;">加载失败，请确保后端服务已启动</div>';
+            }
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
+        loadUserProfile(); 
+        updateNavBar();
+        
+        window.logout = logout; 
+        window.goToProfile = goToProfile; 
+        window.goToDetail = goToDetail; 
+        window.reportUser = reportUser;
+    </script>
+</body>
+</html>

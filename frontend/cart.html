@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购物车 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .cart-container { display: grid; grid-template-columns: 1fr 320px; gap: 30px; margin-top: 30px; }
+        .cart-items { background: white; border-radius: 24px; overflow: hidden; }
+        .cart-header { display: grid; grid-template-columns: 50px 1fr 120px 120px 100px 60px; background: #f8fcf9; padding: 15px 20px; font-weight: 600; border-bottom: 1px solid #e0ede6; }
+        .cart-item { display: grid; grid-template-columns: 50px 1fr 120px 120px 100px 60px; padding: 20px; border-bottom: 1px solid #f0f5f2; align-items: center; }
+        .cart-item-img { font-size: 48px; background: #f8fcf9; width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .quantity-control { display: flex; align-items: center; gap: 8px; }
+        .quantity-btn { width: 28px; height: 28px; border: 1px solid #e0ede6; background: white; border-radius: 8px; cursor: pointer; }
+        .delete-item-btn { background: #f28b82; color: white; border: none; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+        .cart-summary { background: white; border-radius: 24px; padding: 24px; height: fit-content; position: sticky; top: 100px; }
+        .total-price { font-size: 28px; color: #4caf7f; font-weight: bold; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 32px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+        .address-section { margin: 20px 0; max-height: 300px; overflow-y: auto; }
+        .address-row { display: flex; flex-direction: column; gap: 10px; }
+        .address-option { border: 2px solid #e0ede6; border-radius: 12px; padding: 12px 15px; cursor: pointer; transition: all 0.2s; }
+        .address-option.selected { border-color: #4caf7f; background: #e8f5e9; }
+        .add-address-btn { background: #f0f5f2; border: 1px dashed #4caf7f; padding: 10px; border-radius: 12px; cursor: pointer; text-align: center; color: #4caf7f; margin-top: 10px; }
+        @media (max-width: 768px) { .cart-container { grid-template-columns: 1fr; } .cart-header { display: none; } .cart-item { grid-template-columns: 1fr; gap: 12px; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+    <div class="container"><h1 style="margin:30px 0 20px;">🛒 购物车</h1><div id="cartContent"></div></div>
+
+    <!-- 地址选择弹窗 -->
+    <div id="addressModal" class="modal">
+        <div class="modal-content">
+            <h3>📍 选择收货地址</h3>
+            <div id="addressList" class="address-section"></div>
+            <button class="add-address-btn" onclick="addNewAddress()">+ 添加新地址</button>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeAddressModal()" style="flex:1">取消</button>
+                <button class="btn btn-primary" onclick="confirmAddress()" style="flex:2">确认并下单</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加地址弹窗 -->
+    <div id="newAddressModal" class="modal">
+        <div class="modal-content">
+            <h3>➕ 新增地址</h3>
+            <div class="form-group"><input type="text" id="newName" placeholder="收货人姓名"></div>
+            <div class="form-group"><input type="tel" id="newPhone" placeholder="收货人电话"></div>
+            <div class="form-group"><input type="text" id="newAddress" placeholder="详细地址"></div>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeNewAddressModal()" style="flex:1">取消</button>
+                <button class="btn btn-primary" onclick="saveNewAddress()" style="flex:1">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        let cart = [];
+        let selectedItems = [];
+        let selectedAddressIdx = 0;
+        let addresses = [];
+
+        // ========== 通用函数 ==========
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+
+        function goToProfile() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            if (!u) { window.location.href = 'login.html'; return; }
+            window.location.href = u.role === 'admin' ? 'admin.html' : 'profile.html';
+        }
+
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        // ========== 加载购物车（从后端） ==========
+        async function loadCart() {
+            if (!currentUser) return;
+            try {
+                const response = await fetch(`${API_URL}/cart?userId=${currentUser.id}`);
+                const result = await response.json();
+                if (result.success && result.data) {
+                    cart = result.data.map(item => ({
+                        id: item.id,
+                        productId: item.product_id,
+                        title: item.title,
+                        price: parseFloat(item.price),
+                        image: item.image || '📦',
+                        quantity: item.quantity,
+                        stock: item.stock,
+                        seller: item.seller_name,
+                        sellerId: item.seller_id,
+                        selected: item.selected === 1
+                    }));
+                } else {
+                    cart = [];
+                }
+            } catch (error) {
+                console.error('加载购物车失败:', error);
+                cart = [];
+            }
+            renderCart();
+        }
+
+        // ========== 修改数量 ==========
+        async function changeQuantity(idx, delta) {
+            let item = cart[idx];
+            let newQty = item.quantity + delta;
+            if (newQty < 1) return;
+            if (item.stock && newQty > item.stock) { alert('库存不足'); return; }
+            try {
+                await fetch(`${API_URL}/cart/${item.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quantity: newQty })
+                });
+                item.quantity = newQty;
+                renderCart();
+            } catch (error) {
+                console.error('更新数量失败:', error);
+            }
+        }
+
+        // ========== 删除单个商品 ==========
+        async function deleteCartItem(idx) {
+            if (!confirm('确定删除？')) return;
+            let item = cart[idx];
+            try {
+                await fetch(`${API_URL}/cart/${item.id}`, { method: 'DELETE' });
+                cart.splice(idx, 1);
+                renderCart();
+            } catch (error) {
+                console.error('删除失败:', error);
+            }
+        }
+
+        // ========== 清空选中的商品 ==========
+        async function clearCart() {
+            let selectedItems = cart.filter(i => i.selected);
+            if (selectedItems.length === 0) { alert('请先选择商品'); return; }
+            if (!confirm('清空选中的商品？')) return;
+            for (let item of selectedItems) {
+                try {
+                    await fetch(`${API_URL}/cart/${item.id}`, { method: 'DELETE' });
+                } catch (error) {}
+            }
+            cart = cart.filter(i => !i.selected);
+            renderCart();
+        }
+
+        // ========== 去结算 ==========
+        function checkout() {
+            selectedItems = cart.filter(i => i.selected);
+            if (!selectedItems.length) { alert('请选择商品'); return; }
+
+            // 加载地址
+            const savedAddresses = localStorage.getItem(`addresses_${currentUser.id}`);
+            if (savedAddresses) {
+                addresses = JSON.parse(savedAddresses);
+            }
+            if (addresses.length === 0) {
+                addresses = [
+                    { id: 1, name: currentUser.nickname, phone: currentUser.phone || '暂无', address: '请添加收货地址' }
+                ];
+            }
+            selectedAddressIdx = 0;
+            renderAddressList();
+            document.getElementById('addressModal').classList.add('active');
+        }
+
+        // ========== 地址相关 ==========
+        function renderAddressList() {
+            let html = '<div class="address-row">';
+            addresses.forEach((addr, idx) => {
+                html += `<div class="address-option ${idx === selectedAddressIdx ? 'selected' : ''}" onclick="selectAddress(${idx})">
+                    <div><strong>${escapeHtml(addr.name)}</strong> ${escapeHtml(addr.phone)}</div>
+                    <div style="color:#666; font-size:12px;">${escapeHtml(addr.address)}</div>
+                </div>`;
+            });
+            html += '</div>';
+            document.getElementById('addressList').innerHTML = html;
+        }
+
+        function selectAddress(idx) {
+            selectedAddressIdx = idx;
+            renderAddressList();
+        }
+
+        function addNewAddress() {
+            document.getElementById('newAddressModal').classList.add('active');
+        }
+
+        function closeNewAddressModal() {
+            document.getElementById('newAddressModal').classList.remove('active');
+            document.getElementById('newName').value = '';
+            document.getElementById('newPhone').value = '';
+            document.getElementById('newAddress').value = '';
+        }
+
+        function saveNewAddress() {
+            const name = document.getElementById('newName').value.trim();
+            const phone = document.getElementById('newPhone').value.trim();
+            const address = document.getElementById('newAddress').value.trim();
+            if (!name || !phone || !address) { alert('请填写完整信息'); return; }
+            if (!/^1[3-9]\d{9}$/.test(phone)) { alert('请输入正确手机号'); return; }
+            const newAddr = { id: Date.now(), name, phone, address };
+            addresses.push(newAddr);
+            localStorage.setItem(`addresses_${currentUser.id}`, JSON.stringify(addresses));
+            closeNewAddressModal();
+            selectedAddressIdx = addresses.length - 1;
+            renderAddressList();
+        }
+
+        function closeAddressModal() {
+            document.getElementById('addressModal').classList.remove('active');
+        }
+
+        // ========== 确认下单 ==========
+        async function confirmAddress() {
+            let address = addresses[selectedAddressIdx];
+            let addressStr = `${address.name} ${address.phone} ${address.address}`;
+
+            try {
+                for (let item of selectedItems) {
+                    const response = await fetch(`${API_URL}/orders`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            buyerId: currentUser.id,
+                            buyerName: currentUser.nickname,
+                            sellerId: item.sellerId,
+                            productId: item.productId,
+                            address: addressStr,
+                            totalAmount: item.price * item.quantity
+                        })
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        alert('下单失败：' + result.message);
+                        return;
+                    }
+                    // 删除购物车中已下单的商品
+                    await fetch(`${API_URL}/cart/${item.id}`, { method: 'DELETE' });
+                }
+                closeAddressModal();
+                alert(`已创建${selectedItems.length}个订单，请支付`);
+                window.location.href = 'orders.html';
+            } catch (error) {
+                console.error('下单失败:', error);
+                alert('网络错误，请重试');
+            }
+        }
+
+        // ========== 渲染购物车 ==========
+        function renderCart() {
+            const container = document.getElementById('cartContent');
+
+            if (!currentUser) {
+                container.innerHTML = '<div class="empty-state"><div class="emoji">🔒</div><h3>请先登录</h3><a href="login.html" class="btn btn-primary">去登录</a></div>';
+                return;
+            }
+
+            if (!cart.length) {
+                container.innerHTML = '<div class="empty-state"><div class="emoji">🛒</div><h3>购物车是空的</h3><a href="index.html" class="btn btn-primary">去逛逛</a></div>';
+                return;
+            }
+
+            let total = 0, selectedCount = 0;
+            let html = `<div class="cart-container"><div class="cart-items"><div class="cart-header">
+                            <div><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></div>
+                            <div>商品</div><div>单价</div><div>数量</div><div>小计</div><div>操作</div>
+                        </div>`;
+
+            cart.forEach((item, idx) => {
+                let itemTotal = item.price * item.quantity;
+                if (item.selected) { total += itemTotal; selectedCount++; }
+                html += `<div class="cart-item">
+                            <div><input type="checkbox" class="item-checkbox" data-index="${idx}" ${item.selected ? 'checked' : ''} onchange="updateSelected()"></div>
+                            <div class="cart-item-info"><div class="cart-item-img">${item.image}</div><div>${escapeHtml(item.title)}</div></div>
+                            <div>¥${item.price}</div>
+                            <div class="quantity-control">
+                                <button class="quantity-btn" onclick="changeQuantity(${idx},-1)">-</button>
+                                <span>${item.quantity}</span>
+                                <button class="quantity-btn" onclick="changeQuantity(${idx},1)">+</button>
+                            </div>
+                            <div>¥${itemTotal.toFixed(2)}</div>
+                            <div><button class="delete-item-btn" onclick="deleteCartItem(${idx})">删除</button></div>
+                        </div>`;
+            });
+
+            html += `</div><div class="cart-summary">
+                        <h3>订单摘要</h3>
+                        <div style="display:flex; justify-content:space-between; margin:15px 0;">
+                            <span>商品总额</span><span>¥${total.toFixed(2)}</span>
+                        </div>
+                        <div style="border-top:1px solid #e0ede6; padding-top:15px; display:flex; justify-content:space-between;">
+                            <strong>合计</strong><strong class="total-price">¥${total.toFixed(2)}</strong>
+                        </div>
+                        <div style="display:flex; gap:12px; margin-top:20px;">
+                            <button class="btn btn-outline" onclick="clearCart()" style="flex:1">清空选中</button>
+                            <button class="btn btn-primary" onclick="checkout()" style="flex:2">去结算 (${selectedCount})</button>
+                        </div>
+                    </div></div>`;
+            container.innerHTML = html;
+        }
+
+        // ========== 全选/更新选中 ==========
+        async function toggleSelectAll() {
+            let all = document.getElementById('selectAll').checked;
+            for (let item of cart) {
+                item.selected = all;
+                try {
+                    await fetch(`${API_URL}/cart/${item.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ selected: all })
+                    });
+                } catch (error) {}
+            }
+            renderCart();
+        }
+
+        async function updateSelected() {
+            for (let cb of document.querySelectorAll('.item-checkbox')) {
+                let idx = parseInt(cb.dataset.index);
+                cart[idx].selected = cb.checked;
+                try {
+                    await fetch(`${API_URL}/cart/${cart[idx].id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ selected: cb.checked })
+                    });
+                } catch (error) {}
+            }
+            renderCart();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // ========== 初始化 ==========
+        loadCart();
+        updateNavBar();
+
+        window.changeQuantity = changeQuantity;
+        window.deleteCartItem = deleteCartItem;
+        window.clearCart = clearCart;
+        window.checkout = checkout;
+        window.toggleSelectAll = toggleSelectAll;
+        window.updateSelected = updateSelected;
+        window.selectAddress = selectAddress;
+        window.confirmAddress = confirmAddress;
+        window.closeAddressModal = closeAddressModal;
+        window.addNewAddress = addNewAddress;
+        window.closeNewAddressModal = closeNewAddressModal;
+        window.saveNewAddress = saveNewAddress;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+    </script>
+</body>
+</html>

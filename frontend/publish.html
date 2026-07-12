@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发布商品 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .publish-container { max-width: 700px; margin: 30px auto; }
+        .publish-card { background: white; border-radius: 32px; padding: 32px; }
+        .image-upload-area { border: 2px dashed #e0ede6; border-radius: 20px; padding: 30px; text-align: center; cursor: pointer; }
+        .image-upload-area:hover { border-color: #4caf7f; background: #f8fcf9; }
+        .image-preview { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 15px; }
+        .preview-img { width: 80px; height: 80px; background: #f0f5f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .preview-img img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-img { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; background: #f28b82; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; }
+        .loading { opacity: 0.6; pointer-events: none; }
+        .upload-progress { margin-top: 10px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+    <div class="container publish-container">
+        <div class="publish-card">
+            <h2>📦 发布商品</h2>
+            <form id="publishForm">
+                <div class="form-group"><label>商品标题 *</label><input type="text" id="title" maxlength="30" required><div><span id="titleCount">0</span>/30</div></div>
+                <div class="form-group"><label>分类 *</label><select id="category" required><option value="">请选择</option><option value="数码">数码</option><option value="服饰">服饰</option><option value="图书">图书</option><option value="生活">生活用品</option></select></div>
+                <div class="form-group"><label>描述</label><textarea id="description" rows="4" maxlength="500"></textarea><div><span id="descCount">0</span>/500</div></div>
+                <div class="form-group"><label>价格 *</label><input type="number" id="price" step="0.01" min="0.01" required></div>
+                <div class="form-group"><label>可售件数 *</label><input type="number" id="stock" step="1" min="1" value="1" required></div>
+                <div class="form-group"><label>成色 *</label><select id="condition" required><option value="">请选择</option><option value="全新">全新</option><option value="99新">99新</option><option value="95新">95新</option><option value="九成新">九成新</option><option value="八成新">八成新</option></select></div>
+                <div class="form-group">
+                    <div class="image-upload-area" id="uploadArea">📸 点击上传图片（最多9张）<input type="file" id="imageInput" accept="image/*" multiple style="display:none;"></div>
+                    <div class="image-preview" id="imagePreview"></div>
+                    <div class="upload-progress" id="uploadProgress"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitBtn">提交审核</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        if (!currentUser || currentUser.role === 'admin') {
+            alert('请使用普通账号登录');
+            window.location.href = 'login.html';
+        }
+
+        let images = [];
+
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+
+        function goToProfile() { window.location.href = 'profile.html'; }
+
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        document.getElementById('title').addEventListener('input', function() {
+            document.getElementById('titleCount').innerText = this.value.length;
+        });
+        document.getElementById('description').addEventListener('input', function() {
+            document.getElementById('descCount').innerText = this.value.length;
+        });
+
+        const uploadArea = document.getElementById('uploadArea');
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const uploadProgress = document.getElementById('uploadProgress');
+
+        uploadArea.addEventListener('click', () => imageInput.click());
+
+        imageInput.addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            if (images.length + files.length > 9) {
+                alert('最多9张图片');
+                return;
+            }
+
+            uploadProgress.textContent = '上传中...';
+
+            for (let file of files) {
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('图片必须小于2MB');
+                    continue;
+                }
+
+                try {
+                    const base64 = await fileToBase64(file);
+                    const response = await fetch(`${API_URL}/upload`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: base64 })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        images.push(result.url);
+                    }
+                } catch (error) {
+                    console.error('上传失败:', error);
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        images.push(ev.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            uploadProgress.textContent = '';
+            renderImages();
+        });
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderImages() {
+            imagePreview.innerHTML = images.map((img, idx) => `
+                <div class="preview-img">
+                    <img src="${img}" style="width:100%;height:100%;object-fit:cover;border-radius:12px" onerror="this.parentElement.innerHTML='📦'">
+                    <div class="remove-img" onclick="removeImage(${idx})">×</div>
+                </div>
+            `).join('');
+        }
+
+        function removeImage(idx) {
+            images.splice(idx, 1);
+            renderImages();
+        }
+
+        document.getElementById('publishForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('title').value.trim();
+            const category = document.getElementById('category').value;
+            const description = document.getElementById('description').value;
+            const price = parseFloat(document.getElementById('price').value);
+            const stock = parseInt(document.getElementById('stock').value);
+            const condition = document.getElementById('condition').value;
+            const submitBtn = document.getElementById('submitBtn');
+
+            if(title.length < 3) { alert('标题至少3字'); return; }
+            if(!category) { alert('请选分类'); return; }
+            if(isNaN(price) || price < 0.01) { alert('请输入有效价格'); return; }
+            if(isNaN(stock) || stock < 1) { alert('请输入有效数量'); return; }
+
+            submitBtn.textContent = '提交中...';
+            submitBtn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/products`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        category,
+                        description,
+                        price,
+                        stock,
+                        condition,
+                        images: images,
+                        sellerId: currentUser.id,
+                        sellerName: currentUser.nickname
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('商品已提交审核');
+                    window.location.href = 'my-products.html';
+                } else {
+                    alert(result.message || '发布失败');
+                }
+            } catch (error) {
+                console.error('发布失败:', error);
+                alert('网络错误，请确保后端服务已启动');
+            } finally {
+                submitBtn.textContent = '提交审核';
+                submitBtn.classList.remove('loading');
+            }
+        });
+
+        updateNavBar();
+        window.removeImage = removeImage;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+    </script>
+</body>
+</html>

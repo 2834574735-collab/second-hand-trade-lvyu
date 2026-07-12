@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品详情 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .detail-container { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px; }
+        .product-images { background: white; border-radius: 24px; padding: 20px; text-align: center; }
+        .main-image { font-size: 180px; background: #f8fcf9; border-radius: 20px; padding: 40px; }
+        .product-info-detail { background: white; border-radius: 24px; padding: 30px; }
+        .product-title-detail { font-size: 24px; font-weight: bold; margin-bottom: 15px; }
+        .product-price-detail { font-size: 32px; color: #4caf7f; font-weight: bold; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e0ede6; }
+        .info-row { display: flex; margin-bottom: 15px; }
+        .info-label { width: 100px; color: #7a8a8a; }
+        .info-value { flex: 1; }
+        .seller-card { background: #f8fcf9; border-radius: 20px; padding: 20px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .condition-tag { display: inline-block; padding: 4px 12px; background: #e8f5ef; color: #4caf7f; border-radius: 20px; font-size: 12px; }
+        .action-buttons { display: flex; gap: 15px; margin-top: 30px; }
+        .action-buttons .btn { flex: 1; padding: 14px; }
+        .loading { text-align: center; padding: 50px; font-size: 18px; color: #7a8a8a; }
+        .seller-link { color: #4caf7f; text-decoration: none; cursor: pointer; }
+        .seller-link:hover { text-decoration: underline; }
+        @media (max-width: 768px) { .detail-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+    <div class="container"><div class="detail-container" id="detailContainer"><div class="loading">加载中...</div></div></div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        const productId = parseInt(new URLSearchParams(window.location.search).get('id'));
+
+        // ========== 通用函数 ==========
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+        
+        function goToProfile() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            if (!u) { window.location.href = 'login.html'; return; }
+            window.location.href = u.role === 'admin' ? 'admin.html' : 'profile.html';
+        }
+        
+        function goToSellerProfile(sellerId) {
+            window.location.href = `other-user.html?userId=${sellerId}`;
+        }
+        
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        // ========== 加载商品详情 ==========
+        async function loadProduct() {
+            try {
+                const response = await fetch(`${API_URL}/products/${productId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderDetail(result.data);
+                } else {
+                    document.getElementById('detailContainer').innerHTML = '<div class="empty-state">商品不存在</div>';
+                }
+            } catch (error) {
+                console.error('加载失败:', error);
+                document.getElementById('detailContainer').innerHTML = '<div class="empty-state">加载失败，请确保后端服务已启动</div>';
+            }
+        }
+
+        // ========== 加入购物车（调用后端） ==========
+        async function addToCart(id) {
+            if (!currentUser) {
+                if (confirm('请先登录')) window.location.href = 'login.html';
+                return;
+            }
+            const product = window.currentProduct;
+            if (!product) return;
+
+            try {
+                const response = await fetch(`${API_URL}/cart`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.id,
+                        productId: product.id,
+                        quantity: 1
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('已加入购物车');
+                } else {
+                    alert('添加失败：' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                console.error('加入购物车失败:', error);
+                alert('网络错误，请稍后重试');
+            }
+        }
+
+        // ========== 立即购买（调用后端） ==========
+        async function buyNow(id) {
+            if (!currentUser) {
+                if (confirm('请先登录')) window.location.href = 'login.html';
+                return;
+            }
+            const product = window.currentProduct;
+            if (!product) return;
+
+            // 简化版地址（实际项目中可以让用户选择地址）
+            let address = '测试地址 123号';
+            
+            try {
+                const response = await fetch(`${API_URL}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        buyerId: currentUser.id,
+                        buyerName: currentUser.nickname,
+                        sellerId: product.seller_id,
+                        productId: product.id,
+                        address: address,
+                        totalAmount: product.price
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('订单已创建，请前往支付');
+                    window.location.href = 'orders.html';
+                } else {
+                    alert('下单失败：' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                console.error('立即购买失败:', error);
+                alert('网络错误，请重试');
+            }
+        }
+
+        // ========== 渲染页面 ==========
+        function renderDetail(p) {
+            window.currentProduct = p;
+            const isOwner = currentUser && currentUser.id === p.seller_id;
+            
+            document.getElementById('detailContainer').innerHTML = `
+                <div class="product-images">
+                    <div class="main-image">${p.image || '📦'}</div>
+                    <div style="margin-top:10px; font-size:14px; color:#7a8a8a;">库存: ${p.stock || 1}件</div>
+                </div>
+                <div class="product-info-detail">
+                    <div class="product-title-detail">${escapeHtml(p.title)}</div>
+                    <div class="product-price-detail">¥${p.price}</div>
+                    <div class="info-row"><div class="info-label">成色</div><div class="info-value"><span class="condition-tag">${p.condition || '未知'}</span></div></div>
+                    <div class="info-row"><div class="info-label">分类</div><div class="info-value">${p.category || '未分类'}</div></div>
+                    <div class="info-row"><div class="info-label">卖家</div><div class="info-value"><a href="javascript:void(0)" onclick="goToSellerProfile(${p.seller_id})" class="seller-link">${p.seller_name || '未知'}</a></div></div>
+                    <div class="info-row"><div class="info-label">描述</div><div class="info-value">${p.description || '暂无描述'}</div></div>
+                    <div class="seller-card">
+                        <div>
+                            <strong style="cursor:pointer;" onclick="goToSellerProfile(${p.seller_id})">👤 ${p.seller_name || '未知'}</strong>
+                            <div style="font-size:12px; color:#7a8a8a;">信誉分: ${p.credit || 80}</div>
+                        </div>
+                        <button class="btn btn-outline" onclick="goToSellerProfile(${p.seller_id})" style="padding:6px 12px; font-size:12px;">查看卖家主页</button>
+                    </div>
+                    <div class="action-buttons">
+                        ${isOwner ? 
+                            `<button class="btn btn-outline" onclick="alert('编辑功能开发中')">编辑商品</button>
+                             <button class="btn btn-danger" onclick="alert('下架功能开发中')">下架商品</button>` :
+                            `<button class="btn btn-outline" onclick="addToCart(${p.id})">🛒 加入购物车</button>
+                             <button class="btn btn-primary" onclick="buyNow(${p.id})">💰 立即购买</button>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // ========== 初始化 ==========
+        loadProduct();
+        updateNavBar();
+        
+        window.addToCart = addToCart;
+        window.buyNow = buyNow;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+        window.goToSellerProfile = goToSellerProfile;
+    </script>
+</body>
+</html>

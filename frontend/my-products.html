@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的商品 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .status-filter { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+        .filter-btn { padding: 8px 20px; border: 1px solid #e0ede6; background: white; border-radius: 40px; cursor: pointer; }
+        .filter-btn.active { background: #4caf7f; color: white; border-color: #4caf7f; }
+        .product-status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .status-在售 { background: #e8f5e9; color: #2e7d64; }
+        .status-待审核 { background: #fff3e0; color: #ff9800; }
+        .status-已下架 { background: #eeeeee; color: #999; }
+        .product-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .product-actions button { padding: 6px 12px; font-size: 12px; }
+        .loading { text-align: center; padding: 50px; color: #7a8a8a; }
+        .image-upload-area { border: 2px dashed #e0ede6; border-radius: 20px; padding: 20px; text-align: center; cursor: pointer; margin-top: 10px; }
+        .image-upload-area:hover { border-color: #4caf7f; background: #f8fcf9; }
+        .image-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .preview-img { width: 60px; height: 60px; background: #f0f5f2; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .preview-img img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-img { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; background: #f28b82; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; }
+        .edit-loading { opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="logo">🌿 绿屿</a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="cart.html">购物车</a>
+                <a href="orders.html">我的订单</a>
+                <a href="publish.html">发布闲置</a>
+                <a href="my-products.html">我的商品</a>
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:30px 0 20px;">
+            <h1>📦 我的商品</h1>
+            <a href="publish.html" class="btn btn-primary">+ 发布新商品</a>
+        </div>
+        <div class="status-filter">
+            <button class="filter-btn active" data-status="all">全部</button>
+            <button class="filter-btn" data-status="在售">在售</button>
+            <button class="filter-btn" data-status="待审核">待审核</button>
+            <button class="filter-btn" data-status="已下架">已下架</button>
+        </div>
+        <div class="product-grid" id="productsGrid"><div class="loading">加载中...</div></div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content" style="max-width:500px; max-height:90vh; overflow-y:auto;">
+            <h3>编辑商品</h3>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+                <div class="form-group"><label>商品标题 *</label><input type="text" id="editTitle" maxlength="30" required></div>
+                <div class="form-group"><label>分类 *</label>
+                    <select id="editCategory" required>
+                        <option value="">请选择</option>
+                        <option value="数码">数码</option>
+                        <option value="服饰">服饰</option>
+                        <option value="图书">图书</option>
+                        <option value="生活">生活用品</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>描述</label><textarea id="editDescription" rows="3" maxlength="500"></textarea></div>
+                <div class="form-group"><label>价格 *</label><input type="number" id="editPrice" step="0.01" min="0.01" required></div>
+                <div class="form-group"><label>可售件数 *</label><input type="number" id="editStock" step="1" min="1" required></div>
+                <div class="form-group"><label>成色 *</label>
+                    <select id="editCondition" required>
+                        <option value="">请选择</option>
+                        <option value="全新">全新</option>
+                        <option value="99新">99新</option>
+                        <option value="95新">95新</option>
+                        <option value="九成新">九成新</option>
+                        <option value="八成新">八成新</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>商品图片</label>
+                    <div class="image-upload-area" id="editUploadArea">📸 点击更换图片<input type="file" id="editImageInput" accept="image/*" style="display:none;"></div>
+                    <div class="image-preview" id="editImagePreview"></div>
+                </div>
+                <div style="display:flex; gap:12px; margin-top:20px;">
+                    <button type="button" class="btn btn-outline" onclick="closeEditModal()" style="flex:1">取消</button>
+                    <button type="submit" class="btn btn-primary" id="editSubmitBtn" style="flex:2">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        if(!currentUser || currentUser.role === 'admin') {
+            alert('请使用普通账号登录');
+            window.location.href='login.html';
+        }
+
+        let myProducts = [];
+        let currentFilter = 'all';
+        let editImages = [];
+
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+
+        function goToProfile() { window.location.href = 'profile.html'; }
+
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        async function loadMyProducts() {
+            try {
+                const response = await fetch(`${API_URL}/my-products?sellerId=${currentUser.id}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    myProducts = result.data;
+                    renderProducts();
+                } else {
+                    document.getElementById('productsGrid').innerHTML = '<div class="empty-state">加载失败</div>';
+                }
+            } catch (error) {
+                console.error('加载失败:', error);
+                document.getElementById('productsGrid').innerHTML = '<div class="empty-state">无法连接后端服务</div>';
+            }
+        }
+
+        function goToDetail(id) { window.location.href = `product-detail.html?id=${id}`; }
+
+        async function offShelf(id) {
+            if(confirm('下架该商品？')) {
+                try {
+                    const response = await fetch(`${API_URL}/products/${id}/off`, { method: 'PUT' });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('已下架');
+                        loadMyProducts();
+                    } else {
+                        alert('操作失败');
+                    }
+                } catch (error) {
+                    alert('网络错误');
+                }
+            }
+        }
+
+        async function relist(id) {
+            if(confirm('重新上架将进入审核')) {
+                try {
+                    const response = await fetch(`${API_URL}/products/${id}/on`, { method: 'PUT' });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('已提交审核');
+                        loadMyProducts();
+                    } else {
+                        alert('操作失败');
+                    }
+                } catch (error) {
+                    alert('网络错误');
+                }
+            }
+        }
+
+        async function deleteProduct(id) {
+            if(confirm('永久删除？不可恢复')) {
+                alert('删除功能开发中');
+            }
+        }
+
+        function editProduct(id) {
+            const product = myProducts.find(p => p.id === id);
+            if (!product) return;
+
+            document.getElementById('editId').value = product.id;
+            document.getElementById('editTitle').value = product.title;
+            document.getElementById('editCategory').value = product.category;
+            document.getElementById('editDescription').value = product.description || '';
+            document.getElementById('editPrice').value = product.price;
+            document.getElementById('editStock').value = product.stock;
+            document.getElementById('editCondition').value = product.condition;
+
+            editImages = product.image ? [product.image] : [];
+            renderEditImages();
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function renderEditImages() {
+            const preview = document.getElementById('editImagePreview');
+            if (editImages.length === 0) {
+                preview.innerHTML = '<div style="color:#999;font-size:12px;">暂无图片</div>';
+                return;
+            }
+            preview.innerHTML = editImages.map((img, idx) => `
+                <div class="preview-img">
+                    <img src="${img}" onerror="this.parentElement.innerHTML='📦'">
+                    <div class="remove-img" onclick="removeEditImage(${idx})">×</div>
+                </div>
+            `).join('');
+        }
+
+        function removeEditImage(idx) {
+            editImages.splice(idx, 1);
+            renderEditImages();
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        document.getElementById('editUploadArea').addEventListener('click', () => {
+            document.getElementById('editImageInput').click();
+        });
+
+        document.getElementById('editImageInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.size > 2 * 1024 * 1024) {
+                alert('图片必须小于2MB');
+                return;
+            }
+
+            try {
+                const base64 = await fileToBase64(file);
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64 })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    editImages = [result.url];
+                }
+            } catch (error) {
+                console.error('上传失败:', error);
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    editImages = [ev.target.result];
+                };
+                reader.readAsDataURL(file);
+            }
+
+            renderEditImages();
+        });
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('editId').value;
+            const title = document.getElementById('editTitle').value.trim();
+            const category = document.getElementById('editCategory').value;
+            const description = document.getElementById('editDescription').value;
+            const price = parseFloat(document.getElementById('editPrice').value);
+            const stock = parseInt(document.getElementById('editStock').value);
+            const condition = document.getElementById('editCondition').value;
+            const submitBtn = document.getElementById('editSubmitBtn');
+
+            if(title.length < 3) { alert('标题至少3字'); return; }
+            if(!category) { alert('请选分类'); return; }
+            if(isNaN(price) || price < 0.01) { alert('请输入有效价格'); return; }
+
+            submitBtn.textContent = '保存中...';
+            submitBtn.classList.add('edit-loading');
+
+            try {
+                const response = await fetch(`${API_URL}/products/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        category,
+                        description,
+                        price,
+                        stock,
+                        condition,
+                        images: editImages
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('商品已更新');
+                    closeEditModal();
+                    loadMyProducts();
+                } else {
+                    alert(result.message || '更新失败');
+                }
+            } catch (error) {
+                console.error('更新失败:', error);
+                alert('网络错误，请重试');
+            } finally {
+                submitBtn.textContent = '保存';
+                submitBtn.classList.remove('edit-loading');
+            }
+        });
+
+        function renderProducts() {
+            let filtered = myProducts;
+            if(currentFilter !== 'all') {
+                filtered = filtered.filter(p => p.status === currentFilter);
+            }
+
+            const grid = document.getElementById('productsGrid');
+            if(!filtered.length) {
+                grid.innerHTML = '<div class="empty-state"><div class="emoji">📦</div><h3>暂无商品</h3><a href="publish.html" class="btn btn-primary">发布第一个商品</a></div>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(p => `
+                <div class="product-card" style="cursor:default;">
+                    <div class="product-img" onclick="goToDetail(${p.id})">${p.image || '📦'}</div>
+                    <div class="product-info">
+                        <div class="product-title">${escapeHtml(p.title)}</div>
+                        <div class="product-price">¥${p.price}</div>
+                        <div class="product-meta">
+                            <span class="product-status status-${p.status}">${p.status}</span>
+                            <span style="color:#999;font-size:12px;">库存: ${p.stock}</span>
+                        </div>
+                        <div class="product-actions">
+                            ${p.status !== '待审核' ? `<button class="btn btn-primary" onclick="editProduct(${p.id})" style="padding:6px 12px;font-size:12px;">编辑</button>` : ''}
+                            ${p.status === '在售' ?
+                                `<button class="btn btn-outline" onclick="offShelf(${p.id})">下架</button>` :
+                            p.status === '已下架' ?
+                                `<button class="btn btn-outline" onclick="relist(${p.id})">重新上架</button>
+                                 <button class="btn btn-danger" onclick="deleteProduct(${p.id})">删除</button>` :
+                            ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.status;
+                renderProducts();
+            });
+        });
+
+        loadMyProducts();
+        updateNavBar();
+
+        window.goToDetail = goToDetail;
+        window.offShelf = offShelf;
+        window.relist = relist;
+        window.deleteProduct = deleteProduct;
+        window.editProduct = editProduct;
+        window.closeEditModal = closeEditModal;
+        window.removeEditImage = removeEditImage;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+    </script>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员后台 - 绿屿</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .admin-container { display: grid; grid-template-columns: 260px 1fr; gap: 24px; margin-top: 30px; }
+        .admin-sidebar { background: white; border-radius: 24px; padding: 24px; height: fit-content; position: sticky; top: 20px; }
+        .admin-sidebar h3 { margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e0ede6; }
+        .admin-menu { list-style: none; }
+        .admin-menu li { padding: 12px 16px; margin-bottom: 6px; border-radius: 14px; cursor: pointer; transition: all 0.2s; }
+        .admin-menu li:hover { background: #f0f5f2; }
+        .admin-menu li.active { background: #4caf7f; color: white; }
+        .admin-content { background: white; border-radius: 24px; padding: 28px; }
+        .admin-section { display: none; }
+        .admin-section.active { display: block; }
+        .review-card { border: 1px solid #e0ede6; border-radius: 20px; padding: 20px; margin-bottom: 20px; }
+        .review-header { display: flex; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .review-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .badge-warning { background: #fff3e0; color: #ff9800; }
+        .badge-success { background: #e8f5e9; color: #2e7d64; }
+        .chart-container { margin-top: 32px; padding: 20px; background: #f8fcf9; border-radius: 20px; }
+        canvas { max-height: 280px; }
+        .export-btn { margin-top: 24px; padding: 12px 24px; background: #4caf7f; color: white; border: none; border-radius: 40px; cursor: pointer; }
+        .loading { text-align: center; padding: 40px; color: #7a8a8a; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="admin.html" class="logo">🌿 绿屿 · 管理后台</a>
+            <div class="nav-links">
+                <span class="user-section">
+                    <a href="#" id="authLink" onclick="goToProfile()">登录</a>
+                    <span class="separator" id="separator" style="display:none;">|</span>
+                    <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
+                </span>
+            </div>
+        </div>
+    </nav>
+    <div class="container admin-container">
+        <div class="admin-sidebar">
+            <h3>🛡️ 管理后台</h3>
+            <ul class="admin-menu">
+                <li class="active" data-section="dashboard">📊 数据看板</li>
+                <li data-section="products">📦 商品审核</li>
+                <li data-section="reports">⚠️ 举报处理</li>
+                <li data-section="users">👥 用户管理</li>
+            </ul>
+        </div>
+        <div class="admin-content">
+            <div id="dashboard" class="admin-section active">
+                <h2>📊 数据看板</h2>
+                <div class="stats-grid" id="statsGrid"></div>
+                <div class="chart-container"><h3>近7天成交额趋势</h3><canvas id="trendChart"></canvas></div>
+                <div class="chart-container"><h3>热门商品分类</h3><canvas id="categoryChart"></canvas></div>
+                <button class="export-btn" onclick="exportReport()">📎 导出运营报表</button>
+            </div>
+            <div id="products" class="admin-section">
+                <h2>📦 商品审核</h2>
+                <div id="reviewList"><div class="loading">加载中...</div></div>
+            </div>
+            <div id="reports" class="admin-section">
+                <h2>⚠️ 举报处理</h2>
+                <div id="reportList"><div class="loading">加载中...</div></div>
+            </div>
+            <div id="users" class="admin-section">
+                <h2>👥 用户管理</h2>
+                <table class="data-table"><thead><tr><th>ID</th><th>昵称</th><th>手机号</th><th>信誉分</th><th>状态</th><th>操作</th></tr></thead><tbody id="userTableBody"></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        
+        if(!currentUser || currentUser.role !== 'admin') { 
+            alert('请使用管理员账号登录'); 
+            window.location.href = 'login.html'; 
+        }
+        
+        let products = [];
+        let users = [];
+        let orders = JSON.parse(localStorage.getItem('orders')) || [];
+        let reports = JSON.parse(localStorage.getItem('reports')) || [];
+
+        // ========== 通用函数 ==========
+        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+        
+        function goToProfile() { window.location.href = 'admin.html'; }
+        
+        function updateNavBar() {
+            const u = JSON.parse(localStorage.getItem('currentUser'));
+            const authLink = document.getElementById('authLink');
+            const logoutLink = document.getElementById('logoutLink');
+            const separator = document.getElementById('separator');
+            if (u) {
+                authLink.textContent = u.nickname;
+                authLink.style.color = '#ff9800';
+                logoutLink.style.display = 'inline';
+                if (separator) separator.style.display = 'inline';
+            } else {
+                authLink.textContent = '登录';
+                logoutLink.style.display = 'none';
+                if (separator) separator.style.display = 'none';
+            }
+        }
+
+        // ========== 从后端加载数据 ==========
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products/all`);
+                const result = await response.json();
+                if (result.success) {
+                    products = result.data;
+                }
+            } catch (error) {
+                console.error('加载商品失败:', error);
+                products = [];
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/users`);
+                const result = await response.json();
+                if (result.success) {
+                    users = result.data;
+                }
+            } catch (error) {
+                console.error('加载用户失败:', error);
+                users = [];
+            }
+        }
+
+        // ========== 数据看板 ==========
+        async function renderDashboard() {
+            await loadProducts();
+            await loadUsers();
+            
+            const totalProducts = products.length;
+            const totalUsers = users.length;
+            const totalOrders = orders.length;
+            const completedOrders = orders.filter(o => o.status === '已完成').length;
+            const totalAmount = orders.filter(o => o.status === '已完成').reduce((s,o) => s + o.totalAmount, 0);
+            const pendingReviews = products.filter(p => p.status === '待审核').length;
+            
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card"><div class="stat-number">${totalUsers}</div><div class="stat-label">注册用户</div></div>
+                <div class="stat-card"><div class="stat-number">${totalProducts}</div><div class="stat-label">商品总数</div></div>
+                <div class="stat-card"><div class="stat-number">${totalOrders}</div><div class="stat-label">订单总数</div></div>
+                <div class="stat-card"><div class="stat-number">${completedOrders}</div><div class="stat-label">已完成订单</div></div>
+                <div class="stat-card"><div class="stat-number">¥${totalAmount}</div><div class="stat-label">总成交额</div></div>
+                <div class="stat-card"><div class="stat-number">${pendingReviews}</div><div class="stat-label">待审核</div></div>
+            `;
+            
+            // 简单图表（演示用）
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['1', '2', '3', '4', '5', '6', '7'],
+                    datasets: [{ label: '成交额(元)', data: [0, 0, 0, 0, 0, 0, 0], borderColor: '#4caf7f' }]
+                }
+            });
+            
+            const ctx2 = document.getElementById('categoryChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['数码', '服饰', '图书', '生活'],
+                    datasets: [{ label: '商品数量', data: [0, 0, 0, 0], backgroundColor: '#4caf7f' }]
+                }
+            });
+        }
+
+        // ========== 商品审核 ==========
+        async function renderReviews() {
+            await loadProducts();
+            const pending = products.filter(p => p.status === '待审核');
+            const container = document.getElementById('reviewList');
+            
+            if (!pending.length) {
+                container.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><h3>暂无待审核商品</h3></div>';
+                return;
+            }
+            
+            container.innerHTML = pending.map(p => `
+                <div class="review-card">
+                    <div class="review-header">
+                        <strong>${escapeHtml(p.title)}</strong>
+                        <span class="badge badge-warning">待审核</span>
+                    </div>
+                    <div>卖家：${p.seller_name || '未知'} | 价格：¥${p.price} | 成色：${p.condition || '未知'}</div>
+                    <div>描述：${escapeHtml(p.description || '').substring(0, 100)}</div>
+                    <div class="review-actions">
+                        <button class="btn btn-primary" onclick="approveProduct(${p.id})">✅ 通过</button>
+                        <button class="btn btn-danger" onclick="rejectProduct(${p.id})">❌ 驳回</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function approveProduct(id) {
+            try {
+                const response = await fetch(`${API_URL}/products/${id}/approve`, { method: 'PUT' });
+                const result = await response.json();
+                if (result.success) {
+                    alert('审核通过');
+                    renderReviews();
+                    renderDashboard();
+                } else {
+                    alert('操作失败');
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        async function rejectProduct(id) {
+            const reason = prompt('驳回理由：');
+            if (reason) {
+                try {
+                    const response = await fetch(`${API_URL}/products/${id}/reject`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('已驳回');
+                        renderReviews();
+                        renderDashboard();
+                    } else {
+                        alert('操作失败');
+                    }
+                } catch (error) {
+                    alert('网络错误');
+                }
+            }
+        }
+
+        // ========== 举报处理 ==========
+        function renderReports() {
+            const pending = reports.filter(r => r.status === '待处理');
+            const container = document.getElementById('reportList');
+            
+            if (!pending.length) {
+                container.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><h3>暂无待处理举报</h3></div>';
+                return;
+            }
+            
+            container.innerHTML = pending.map(r => `
+                <div class="review-card">
+                    <div><strong>举报人：</strong>${r.reporter}</div>
+                    <div><strong>被举报：</strong>${r.target}</div>
+                    <div><strong>类型：</strong>${r.type}</div>
+                    <div><strong>理由：</strong>${r.reason}</div>
+                    <div class="review-actions">
+                        <button class="btn btn-primary" onclick="resolveReport(${r.id}, '警告')">⚠️ 警告</button>
+                        <button class="btn btn-danger" onclick="resolveReport(${r.id}, '封禁')">🔨 封禁</button>
+                        <button class="btn btn-outline" onclick="resolveReport(${r.id}, '驳回')">❌ 驳回</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function resolveReport(id, action) {
+            const idx = reports.findIndex(r => r.id === id);
+            if (idx !== -1) {
+                reports[idx].status = '已处理';
+                localStorage.setItem('reports', JSON.stringify(reports));
+                alert(`已处理：${action}`);
+                renderReports();
+            }
+        }
+
+        // ========== 用户管理 ==========
+        function renderUsers() {
+            document.getElementById('userTableBody').innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${escapeHtml(u.nickname)}</td>
+                    <td>${u.phone || ''}</td>
+                    <td>${u.credit || 80}</td>
+                    <td><span class="badge ${u.status === '正常' ? 'badge-success' : 'badge-warning'}">${u.status || '正常'}</span></td>
+                    <td>${u.status === '正常' ? 
+                        `<button class="btn btn-danger" style="padding:4px 12px;" onclick="banUser(${u.id})">封禁</button>` : 
+                        `<button class="btn btn-primary" style="padding:4px 12px;" onclick="unbanUser(${u.id})">解封</button>`
+                    }</td>
+                </tr>
+            `).join('');
+        }
+
+        function banUser(id) {
+            if (confirm('封禁该用户？')) {
+                alert('封禁功能开发中');
+            }
+        }
+
+        function unbanUser(id) {
+            if (confirm('解封该用户？')) {
+                alert('解封功能开发中');
+            }
+        }
+
+        function exportReport() {
+            const data = {
+                exportTime: new Date().toISOString(),
+                totalUsers: users.length,
+                totalProducts: products.length,
+                totalOrders: orders.length,
+                totalAmount: orders.filter(o => o.status === '已完成').reduce((s,o) => s + o.totalAmount, 0)
+            };
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+            a.download = `运营报表_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            alert('报表已导出');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // ========== 菜单切换 ==========
+        document.querySelectorAll('.admin-menu li').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.admin-menu li').forEach(li => li.classList.remove('active'));
+                this.classList.add('active');
+                document.querySelectorAll('.admin-section').forEach(sec => sec.classList.remove('active'));
+                const sectionId = this.dataset.section;
+                document.getElementById(sectionId).classList.add('active');
+                
+                // 切换时刷新对应数据
+                if (sectionId === 'products') renderReviews();
+                if (sectionId === 'users') renderUsers();
+                if (sectionId === 'reports') renderReports();
+            });
+        });
+
+        // ========== 添加后端缺少的接口（临时） ==========
+        // 注意：需要后端添加 /api/products/all 和 /api/products/:id/approve 等接口
+        
+        // 初始化
+        async function init() {
+            await loadProducts();
+            await loadUsers();
+            renderDashboard();
+            renderReviews();
+            renderReports();
+            renderUsers();
+            updateNavBar();
+        }
+        
+        init();
+        
+        window.approveProduct = approveProduct;
+        window.rejectProduct = rejectProduct;
+        window.resolveReport = resolveReport;
+        window.banUser = banUser;
+        window.unbanUser = unbanUser;
+        window.exportReport = exportReport;
+        window.logout = logout;
+        window.goToProfile = goToProfile;
+    </script>
+</body>
+</html>
