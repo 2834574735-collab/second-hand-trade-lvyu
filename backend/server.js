@@ -9,6 +9,14 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+// ========== 统一响应格式 ==========
+function sendSuccess(res, data, message = '操作成功') {
+    res.json({ success: true, message, data });
+}
+
+function sendError(res, message = '操作失败', status = 400) {
+    res.status(status).json({ success: false, message });
+}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -66,7 +74,7 @@ app.use('/uploads', express.static('uploads'));
 
 // ========== 测试接口 ==========
 app.get('/hello', (req, res) => {
-    res.json({ message: 'Hello, 绿屿! 后端服务已启动' });
+    sendSuccess(res, { message: 'Hello, 绿屿! 后端服务已启动' });
 });
 
 // ========== 用户相关接口 ==========
@@ -75,7 +83,7 @@ app.get('/hello', (req, res) => {
 app.get('/api/users', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, username, nickname, phone, email, role, credit, status, create_time FROM users');
-        res.json({ success: true, data: rows });
+        sendSuccess(res, rows);
     } catch (error) {
         console.error('查询用户失败:', error);
         res.status(500).json({ success: false, message: '查询失败' });
@@ -127,7 +135,7 @@ app.post('/api/register', async (req, res) => {
             [username, nickname, phone, email || null, hashedPassword]
         );
 
-        res.json({ success: true, message: '注册成功', userId: result.insertId });
+        sendSuccess(res, { userId: result.insertId }, '注册成功');
 
     } catch (error) {
         console.error('注册失败:', error);
@@ -166,7 +174,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         const { password: _, ...userInfo } = user;
-        res.json({ success: true, message: '登录成功', user: userInfo });
+        sendSuccess(res, { user: userInfo }, '登录成功');
 
     } catch (error) {
         console.error('登录失败:', error);
