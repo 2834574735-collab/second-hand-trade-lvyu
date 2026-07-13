@@ -25,3 +25,8 @@
 5. 启动服务：`node server.js`
 
 ### `.env` 配置示例
+MYSQL_URL=mysql://root:你的密码@localhost:3306/second_hand_trade
+EMAIL_USER=你的QQ邮箱@qq.com
+EMAIL_PASS=你的邮箱授权码
+PORT=3000
+
