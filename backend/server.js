@@ -1,5 +1,6 @@
 require('dotenv').config();
-const bcrypt =require('bcryptjs');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const express = require('express');
 const cors = require('cors');
 const db = require('./src/config/db');
@@ -9,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+
 // ========== 统一响应格式 ==========
 function sendSuccess(res, data, message = '操作成功') {
     res.json({ success: true, message, data });
@@ -16,6 +18,45 @@ function sendSuccess(res, data, message = '操作成功') {
 
 function sendError(res, message = '操作失败', status = 400) {
     res.status(status).json({ success: false, message });
+}
+
+// ========== JWT 工具函数 ==========
+function generateToken(user) {
+    return jwt.sign(
+        {
+            userId: user.id,
+            username: user.username,
+            role: user.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+}
+
+function verifyToken(token) {
+    try {
+        return jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+        return null;
+    }
+}
+
+// ========== Token 验证中间件 ==========
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return sendError(res, '未提供 Token，请先登录', 401);
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded) {
+        return sendError(res, 'Token 无效或已过期，请重新登录', 401);
+    }
+
+    req.user = decoded;
+    next();
 }
 
 app.use(cors());
@@ -43,7 +84,7 @@ const fileFilter = (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
         return cb(null, true);
     } else {
@@ -51,7 +92,7 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: { fileSize: 2 * 1024 * 1024 }
@@ -72,62 +113,61 @@ const resetCodeStore = new Map();
 // ========== 静态文件服务 ==========
 app.use('/uploads', express.static('uploads'));
 
-// ========== 测试接口 ==========
+// ========== 测试接口（无需登录） ==========
 app.get('/hello', (req, res) => {
     sendSuccess(res, { message: 'Hello, 绿屿! 后端服务已启动' });
 });
 
 // ========== 用户相关接口 ==========
 
-// 查询所有用户
-app.get('/api/users', async (req, res) => {
+// 查询所有用户（需要管理员权限）
+app.get('/api/users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return sendError(res, '权限不足，需要管理员权限', 403);
+    }
     try {
         const [rows] = await db.query('SELECT id, username, nickname, phone, email, role, credit, status, create_time FROM users');
         sendSuccess(res, rows);
     } catch (error) {
         console.error('查询用户失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-// 注册接口
+// 注册接口（无需登录）
 app.post('/api/register', async (req, res) => {
     const { username, nickname, phone, email, password } = req.body;
 
-    // 1. 基础字段校验
     if (!username || !nickname || !phone || !password) {
-        return res.status(400).json({ success: false, message: '请填写完整信息' });
+        return sendError(res, '请填写完整信息', 400);
     }
 
-    // 2. L2：密码强度校验
     if (password.length < 8) {
-        return res.status(400).json({ success: false, message: '密码长度不能少于8位' });
+        return sendError(res, '密码长度不能少于8位', 400);
     }
     if (!/[A-Z]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个大写字母' });
+        return sendError(res, '密码必须包含至少一个大写字母', 400);
     }
     if (!/[a-z]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个小写字母' });
+        return sendError(res, '密码必须包含至少一个小写字母', 400);
     }
     if (!/[0-9]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个数字' });
+        return sendError(res, '密码必须包含至少一个数字', 400);
     }
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个特殊字符 (!@#$%^&* 等)' });
+        return sendError(res, '密码必须包含至少一个特殊字符 (!@#$%^&* 等)', 400);
     }
 
     try {
-        // 3. 防重放攻击 - 检查用户名/手机号是否已存在
         const [existing] = await db.query(
             'SELECT id FROM users WHERE username = ? OR phone = ?',
             [username, phone]
         );
 
         if (existing.length > 0) {
-            return res.status(409).json({ success: false, message: '用户名或手机号已注册' });
+            return sendError(res, '用户名或手机号已注册', 409);
         }
 
-        // 4. 密码哈希加密
         const hashedPassword = bcrypt.hashSync(password, 10);
 
         const [result] = await db.query(
@@ -139,16 +179,16 @@ app.post('/api/register', async (req, res) => {
 
     } catch (error) {
         console.error('注册失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
-// 登录接口
+// 登录接口（无需登录）
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ success: false, message: '请输入用户名和密码' });
+        return sendError(res, '请输入用户名和密码', 400);
     }
 
     try {
@@ -158,133 +198,137 @@ app.post('/api/login', async (req, res) => {
         );
 
         if (users.length === 0) {
-            return res.status(401).json({ success: false, message: '用户名或密码错误' });
+            return sendError(res, '用户名或密码错误', 401);
         }
 
         const user = users[0];
 
         if (user.status === '封禁') {
-            return res.status(403).json({ success: false, message: '账号已被封禁' });
+            return sendError(res, '账号已被封禁', 403);
         }
 
-        // 使用 bcrypt 比对密码
         const isPasswordValid = bcrypt.compareSync(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ success: false, message: '用户名或密码错误' });
+            return sendError(res, '用户名或密码错误', 401);
         }
 
+        const token = generateToken(user);
         const { password: _, ...userInfo } = user;
-        sendSuccess(res, { user: userInfo }, '登录成功');
+        sendSuccess(res, { user: userInfo, token }, '登录成功');
 
     } catch (error) {
         console.error('登录失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
-// 修改手机号
-app.put('/api/users/:id/phone', async (req, res) => {
-    const userId = req.params.id;
+// 修改手机号（需要登录）
+app.put('/api/users/:id/phone', authenticateToken, async (req, res) => {
+    const userId = parseInt(req.params.id);
+    if (userId !== req.user.userId) {
+        return sendError(res, '只能修改自己的手机号', 403);
+    }
     const { phone } = req.body;
-    
+
     if (!phone) {
-        return res.status(400).json({ success: false, message: '手机号不能为空' });
+        return sendError(res, '手机号不能为空', 400);
     }
-    
+
     if (!/^1[3-9]\d{9}$/.test(phone)) {
-        return res.status(400).json({ success: false, message: '手机号格式不正确' });
+        return sendError(res, '手机号格式不正确', 400);
     }
-    
+
     try {
         const [existing] = await db.query(
             'SELECT id FROM users WHERE phone = ? AND id != ?',
             [phone, userId]
         );
-        
+
         if (existing.length > 0) {
-            return res.status(409).json({ success: false, message: '手机号已被其他用户使用' });
+            return sendError(res, '手机号已被其他用户使用', 409);
         }
-        
+
         await db.query('UPDATE users SET phone = ? WHERE id = ?', [phone, userId]);
-        res.json({ success: true, message: '手机号修改成功' });
+        sendSuccess(res, null, '手机号修改成功');
     } catch (error) {
         console.error('修改手机号失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
-// 修改密码
-app.put('/api/users/:id/password', async (req, res) => {
-    const userId = req.params.id;
+// 修改密码（需要登录）
+app.put('/api/users/:id/password', authenticateToken, async (req, res) => {
+    const userId = parseInt(req.params.id);
+    if (userId !== req.user.userId) {
+        return sendError(res, '只能修改自己的密码', 403);
+    }
     const { password } = req.body;
 
     if (!password) {
-        return res.status(400).json({ success: false, message: '密码不能为空' });
+        return sendError(res, '密码不能为空', 400);
     }
 
-    // L2：密码强度校验
     if (password.length < 8) {
-        return res.status(400).json({ success: false, message: '密码长度不能少于8位' });
+        return sendError(res, '密码长度不能少于8位', 400);
     }
     if (!/[A-Z]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个大写字母' });
+        return sendError(res, '密码必须包含至少一个大写字母', 400);
     }
     if (!/[a-z]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个小写字母' });
+        return sendError(res, '密码必须包含至少一个小写字母', 400);
     }
     if (!/[0-9]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个数字' });
+        return sendError(res, '密码必须包含至少一个数字', 400);
     }
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个特殊字符 (!@#$%^&* 等)' });
+        return sendError(res, '密码必须包含至少一个特殊字符 (!@#$%^&* 等)', 400);
     }
 
     try {
         const hashedPassword = bcrypt.hashSync(password, 10);
         await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
-        res.json({ success: true, message: '密码修改成功' });
+        sendSuccess(res, null, '密码修改成功');
     } catch (error) {
         console.error('修改密码失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
-// ========== 忘记密码接口 ==========
+// ========== 忘记密码接口（无需登录） ==========
 
 // 发送验证码
 app.post('/api/forgot-password', async (req, res) => {
     const { account } = req.body;
-    
+
     if (!account) {
-        return res.status(400).json({ success: false, message: '请输入用户名或手机号' });
+        return sendError(res, '请输入用户名或手机号', 400);
     }
-    
+
     try {
         const [users] = await db.query(
             'SELECT id, username, nickname, phone, email FROM users WHERE username = ? OR phone = ?',
             [account, account]
         );
-        
+
         if (users.length === 0) {
-            return res.status(404).json({ success: false, message: '用户不存在' });
+            return sendError(res, '用户不存在', 404);
         }
-        
+
         const user = users[0];
-        
+
         if (!user.email) {
-            return res.status(400).json({ success: false, message: '该用户未绑定邮箱，请联系管理员' });
+            return sendError(res, '该用户未绑定邮箱，请联系管理员', 400);
         }
-        
+
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        
+
         resetCodeStore.set(user.id, {
             code: code,
             expire: Date.now() + 10 * 60 * 1000
         });
-        
-        // 异步发送邮件
-        res.json({ success: true, message: '验证码已发送', userId: user.id });
-        
+
+        sendSuccess(res, { userId: user.id }, '验证码已发送');
+
         emailTransporter.sendMail({
             from: '2834574735@qq.com',
             to: user.email,
@@ -307,38 +351,38 @@ app.post('/api/forgot-password', async (req, res) => {
         }).catch(err => {
             console.error('邮件发送失败:', err);
         });
-        
+
     } catch (error) {
         console.error('发送验证码失败:', error);
-        res.status(500).json({ success: false, message: '发送失败，请稍后重试' });
+        sendError(res, '发送失败，请稍后重试', 500);
     }
 });
 
 // 验证验证码
 app.post('/api/verify-reset-code', async (req, res) => {
     const { userId, code } = req.body;
-    
+
     if (!userId || !code) {
-        return res.status(400).json({ success: false, message: '参数不完整' });
+        return sendError(res, '参数不完整', 400);
     }
-    
+
     const stored = resetCodeStore.get(parseInt(userId));
-    
+
     if (!stored) {
-        return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
+        return sendError(res, '验证码已过期，请重新获取', 400);
     }
-    
+
     if (stored.expire < Date.now()) {
         resetCodeStore.delete(parseInt(userId));
-        return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
+        return sendError(res, '验证码已过期，请重新获取', 400);
     }
-    
+
     if (stored.code !== code) {
-        return res.status(400).json({ success: false, message: '验证码错误' });
+        return sendError(res, '验证码错误', 400);
     }
-    
+
     resetCodeStore.delete(parseInt(userId));
-    res.json({ success: true, message: '验证通过' });
+    sendSuccess(res, null, '验证通过');
 });
 
 // 重置密码
@@ -346,24 +390,23 @@ app.post('/api/reset-password', async (req, res) => {
     const { userId, newPassword } = req.body;
 
     if (!userId || !newPassword) {
-        return res.status(400).json({ success: false, message: '参数不完整' });
+        return sendError(res, '参数不完整', 400);
     }
 
-    // L2：密码强度校验
     if (newPassword.length < 8) {
-        return res.status(400).json({ success: false, message: '密码长度不能少于8位' });
+        return sendError(res, '密码长度不能少于8位', 400);
     }
     if (!/[A-Z]/.test(newPassword)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个大写字母' });
+        return sendError(res, '密码必须包含至少一个大写字母', 400);
     }
     if (!/[a-z]/.test(newPassword)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个小写字母' });
+        return sendError(res, '密码必须包含至少一个小写字母', 400);
     }
     if (!/[0-9]/.test(newPassword)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个数字' });
+        return sendError(res, '密码必须包含至少一个数字', 400);
     }
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
-        return res.status(400).json({ success: false, message: '密码必须包含至少一个特殊字符 (!@#$%^&* 等)' });
+        return sendError(res, '密码必须包含至少一个特殊字符 (!@#$%^&* 等)', 400);
     }
 
     try {
@@ -373,43 +416,46 @@ app.post('/api/reset-password', async (req, res) => {
             [hashedPassword, userId]
         );
 
-        res.json({ success: true, message: '密码重置成功' });
+        sendSuccess(res, null, '密码重置成功');
 
     } catch (error) {
         console.error('重置密码失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
 // ========== 商品相关接口 ==========
 
-// 获取所有在售商品
+// 获取所有在售商品（无需登录，公开浏览）
 app.get('/api/products', async (req, res) => {
     try {
         const [products] = await db.query(
             'SELECT id, title, price, `condition`, category, image, seller_name, seller_id, status, stock, description, create_time FROM products WHERE status = "在售" ORDER BY create_time DESC'
         );
-        res.json({ success: true, data: products });
+        sendSuccess(res, products);
     } catch (error) {
         console.error('查询商品失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-// 获取所有商品（管理员用）
-app.get('/api/products/all', async (req, res) => {
+// 获取所有商品（管理员用，需要登录+管理员权限）
+app.get('/api/products/all', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return sendError(res, '权限不足，需要管理员权限', 403);
+    }
     try {
         const [products] = await db.query(
             'SELECT id, title, price, `condition`, category, image, seller_name, seller_id, status, stock, description, create_time FROM products ORDER BY create_time DESC'
         );
-        res.json({ success: true, data: products });
+        sendSuccess(res, products);
     } catch (error) {
         console.error('查询失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-// 获取单个商品
+// 获取单个商品（无需登录，公开浏览）
 app.get('/api/products/:id', async (req, res) => {
     const productId = req.params.id;
     try {
@@ -418,21 +464,23 @@ app.get('/api/products/:id', async (req, res) => {
             [productId]
         );
         if (products.length === 0) {
-            return res.status(404).json({ success: false, message: '商品不存在' });
+            return sendError(res, '商品不存在', 404);
         }
-        res.json({ success: true, data: products[0] });
+        sendSuccess(res, products[0]);
     } catch (error) {
         console.error('查询商品失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-// 发布商品
-app.post('/api/products', async (req, res) => {
-    const { title, category, description, price, stock, condition, images, sellerId, sellerName } = req.body;
+// 发布商品（需要登录）
+app.post('/api/products', authenticateToken, async (req, res) => {
+    const { title, category, description, price, stock, condition, images } = req.body;
+    const sellerId = req.user.userId;
+    const sellerName = req.user.username;
 
     if (!title || !category || !price || !stock || !condition) {
-        return res.status(400).json({ success: false, message: '请填写完整信息' });
+        return sendError(res, '请填写完整信息', 400);
     }
 
     try {
@@ -444,122 +492,162 @@ app.post('/api/products', async (req, res) => {
             [title, category, description, price, stock, condition, imageUrl, sellerId, sellerName]
         );
 
-        res.json({ success: true, message: '商品发布成功', productId: result.insertId });
+        sendSuccess(res, { productId: result.insertId }, '商品发布成功');
     } catch (error) {
         console.error('发布商品失败:', error);
-        res.status(500).json({ success: false, message: '服务器错误' });
+        sendError(res, '服务器错误', 500);
     }
 });
 
-// 编辑商品
-app.put('/api/products/:id', async (req, res) => {
+// 编辑商品（需要登录）
+app.put('/api/products/:id', authenticateToken, async (req, res) => {
     const productId = req.params.id;
+    const userId = req.user.userId;
     const { title, category, description, price, stock, condition, images } = req.body;
 
     try {
+        const [products] = await db.query(
+            'SELECT seller_id FROM products WHERE id = ?',
+            [productId]
+        );
+        if (products.length === 0) {
+            return sendError(res, '商品不存在', 404);
+        }
+        if (products[0].seller_id !== userId && req.user.role !== 'admin') {
+            return sendError(res, '只能编辑自己的商品', 403);
+        }
+
         const imageUrl = images && images.length > 0 ? images[0] : '📦';
         await db.query(
             'UPDATE products SET title = ?, category = ?, description = ?, price = ?, stock = ?, `condition` = ?, image = ? WHERE id = ?',
             [title, category, description, price, stock, condition, imageUrl, productId]
         );
-        res.json({ success: true, message: '商品已更新' });
+        sendSuccess(res, null, '商品已更新');
     } catch (error) {
         console.error('更新商品失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// 获取卖家商品列表
-app.get('/api/my-products', async (req, res) => {
-    const sellerId = req.query.sellerId;
-    if (!sellerId) {
-        return res.status(400).json({ success: false, message: '缺少卖家ID' });
-    }
-
+// 获取卖家商品列表（需要登录）
+app.get('/api/my-products', authenticateToken, async (req, res) => {
+    const sellerId = req.user.userId;
     try {
         const [products] = await db.query(
             'SELECT id, title, price, `condition`, category, image, status, stock, create_time FROM products WHERE seller_id = ? ORDER BY create_time DESC',
             [sellerId]
         );
-        res.json({ success: true, data: products });
+        sendSuccess(res, products);
     } catch (error) {
         console.error('查询商品失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-// 下架商品
-app.put('/api/products/:id/off', async (req, res) => {
+// 下架商品（需要登录）
+app.put('/api/products/:id/off', authenticateToken, async (req, res) => {
     const productId = req.params.id;
+    const userId = req.user.userId;
+
     try {
+        const [products] = await db.query(
+            'SELECT seller_id FROM products WHERE id = ?',
+            [productId]
+        );
+        if (products.length === 0) {
+            return sendError(res, '商品不存在', 404);
+        }
+        if (products[0].seller_id !== userId && req.user.role !== 'admin') {
+            return sendError(res, '只能下架自己的商品', 403);
+        }
+
         await db.query('UPDATE products SET status = "已下架" WHERE id = ?', [productId]);
-        res.json({ success: true, message: '商品已下架' });
+        sendSuccess(res, null, '商品已下架');
     } catch (error) {
         console.error('下架失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// 重新上架
-app.put('/api/products/:id/on', async (req, res) => {
+// 重新上架（需要登录）
+app.put('/api/products/:id/on', authenticateToken, async (req, res) => {
     const productId = req.params.id;
+    const userId = req.user.userId;
+
     try {
+        const [products] = await db.query(
+            'SELECT seller_id FROM products WHERE id = ?',
+            [productId]
+        );
+        if (products.length === 0) {
+            return sendError(res, '商品不存在', 404);
+        }
+        if (products[0].seller_id !== userId && req.user.role !== 'admin') {
+            return sendError(res, '只能上架自己的商品', 403);
+        }
+
         await db.query('UPDATE products SET status = "待审核" WHERE id = ?', [productId]);
-        res.json({ success: true, message: '已提交审核' });
+        sendSuccess(res, null, '已提交审核');
     } catch (error) {
         console.error('上架失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// ========== 管理员审核接口 ==========
+// ========== 管理员审核接口（需要管理员权限） ==========
 
-app.put('/api/products/:id/approve', async (req, res) => {
+app.put('/api/products/:id/approve', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return sendError(res, '权限不足，需要管理员权限', 403);
+    }
     const productId = req.params.id;
     try {
         await db.query('UPDATE products SET status = "在售" WHERE id = ?', [productId]);
-        res.json({ success: true, message: '审核通过' });
+        sendSuccess(res, null, '审核通过');
     } catch (error) {
         console.error('审核失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.put('/api/products/:id/reject', async (req, res) => {
+app.put('/api/products/:id/reject', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return sendError(res, '权限不足，需要管理员权限', 403);
+    }
     const productId = req.params.id;
     try {
         await db.query('UPDATE products SET status = "已下架" WHERE id = ?', [productId]);
-        res.json({ success: true, message: '已驳回' });
+        sendSuccess(res, null, '已驳回');
     } catch (error) {
         console.error('驳回失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// ========== 购物车接口 ==========
+// ========== 购物车接口（需要登录） ==========
 
-app.get('/api/cart', async (req, res) => {
-    const userId = req.query.userId;
-    if (!userId) {
-        return res.status(400).json({ success: false, message: '缺少用户ID' });
-    }
+app.get('/api/cart', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
     try {
         const [items] = await db.query(
             'SELECT c.id, c.product_id, c.quantity, c.selected, p.title, p.price, p.image, p.stock, p.seller_id, p.seller_name FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?',
             [userId]
         );
-        res.json({ success: true, data: items });
+        sendSuccess(res, items);
     } catch (error) {
         console.error('查询购物车失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-app.post('/api/cart', async (req, res) => {
-    const { userId, productId, quantity = 1 } = req.body;
-    if (!userId || !productId) {
-        return res.status(400).json({ success: false, message: '缺少参数' });
+app.post('/api/cart', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const { productId, quantity = 1 } = req.body;
+
+    if (!productId) {
+        return sendError(res, '缺少商品ID', 400);
     }
+
     try {
         const [existing] = await db.query(
             'SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?',
@@ -570,49 +658,73 @@ app.post('/api/cart', async (req, res) => {
         } else {
             await db.query('INSERT INTO cart (user_id, product_id, quantity, selected) VALUES (?, ?, ?, 0)', [userId, productId, quantity]);
         }
-        res.json({ success: true, message: '已添加到购物车' });
+        sendSuccess(res, null, '已添加到购物车');
     } catch (error) {
         console.error('添加购物车失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.put('/api/cart/:id', async (req, res) => {
+app.put('/api/cart/:id', authenticateToken, async (req, res) => {
     const cartId = req.params.id;
+    const userId = req.user.userId;
     const { quantity, selected } = req.body;
+
     try {
+        const [items] = await db.query(
+            'SELECT user_id FROM cart WHERE id = ?',
+            [cartId]
+        );
+        if (items.length === 0) {
+            return sendError(res, '购物车项不存在', 404);
+        }
+        if (items[0].user_id !== userId) {
+            return sendError(res, '只能操作自己的购物车', 403);
+        }
+
         if (quantity !== undefined) {
             await db.query('UPDATE cart SET quantity = ? WHERE id = ?', [quantity, cartId]);
         }
         if (selected !== undefined) {
             await db.query('UPDATE cart SET selected = ? WHERE id = ?', [selected ? 1 : 0, cartId]);
         }
-        res.json({ success: true, message: '已更新' });
+        sendSuccess(res, null, '已更新');
     } catch (error) {
         console.error('更新购物车失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.delete('/api/cart/:id', async (req, res) => {
+app.delete('/api/cart/:id', authenticateToken, async (req, res) => {
     const cartId = req.params.id;
+    const userId = req.user.userId;
+
     try {
+        const [items] = await db.query(
+            'SELECT user_id FROM cart WHERE id = ?',
+            [cartId]
+        );
+        if (items.length === 0) {
+            return sendError(res, '购物车项不存在', 404);
+        }
+        if (items[0].user_id !== userId) {
+            return sendError(res, '只能删除自己的购物车项', 403);
+        }
+
         await db.query('DELETE FROM cart WHERE id = ?', [cartId]);
-        res.json({ success: true, message: '已删除' });
+        sendSuccess(res, null, '已删除');
     } catch (error) {
         console.error('删除购物车失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// ========== 订单接口 ==========
+// ========== 订单接口（需要登录） ==========
 
-app.get('/api/orders', async (req, res) => {
-    const userId = req.query.userId;
-    const role = req.query.role;
-    if (!userId) {
-        return res.status(400).json({ success: false, message: '缺少用户ID' });
-    }
+app.get('/api/orders', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const role = req.query.role || 'buyer';
+
     try {
         let sql = 'SELECT o.*, p.title, p.image FROM orders o JOIN products p ON o.product_id = p.id WHERE ';
         if (role === 'seller') {
@@ -622,18 +734,22 @@ app.get('/api/orders', async (req, res) => {
         }
         sql += ' ORDER BY o.create_time DESC';
         const [orders] = await db.query(sql, [userId]);
-        res.json({ success: true, data: orders });
+        sendSuccess(res, orders);
     } catch (error) {
         console.error('查询订单失败:', error);
-        res.status(500).json({ success: false, message: '查询失败' });
+        sendError(res, '查询失败', 500);
     }
 });
 
-app.post('/api/orders', async (req, res) => {
-    const { buyerId, buyerName, sellerId, productId, address, totalAmount } = req.body;
-    if (!buyerId || !sellerId || !productId) {
-        return res.status(400).json({ success: false, message: '缺少参数' });
+app.post('/api/orders', authenticateToken, async (req, res) => {
+    const buyerId = req.user.userId;
+    const buyerName = req.user.username;
+    const { sellerId, productId, address, totalAmount } = req.body;
+
+    if (!sellerId || !productId) {
+        return sendError(res, '缺少参数', 400);
     }
+
     try {
         const [result] = await db.query(
             'INSERT INTO orders (buyer_id, buyer_name, seller_id, product_id, address, total_amount, status, create_time) VALUES (?, ?, ?, ?, ?, ?, "待付款", NOW())',
@@ -641,91 +757,128 @@ app.post('/api/orders', async (req, res) => {
         );
         await db.query('DELETE FROM cart WHERE user_id = ? AND product_id = ?', [buyerId, productId]);
         await db.query('UPDATE products SET stock = stock - 1 WHERE id = ?', [productId]);
-        res.json({ success: true, message: '订单创建成功', orderId: result.insertId });
+        sendSuccess(res, { orderId: result.insertId }, '订单创建成功');
     } catch (error) {
         console.error('创建订单失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.put('/api/orders/:id', async (req, res) => {
+app.put('/api/orders/:id', authenticateToken, async (req, res) => {
     const orderId = req.params.id;
+    const userId = req.user.userId;
     const { status, expressNo } = req.body;
+
     try {
+        const [orders] = await db.query(
+            'SELECT buyer_id, seller_id FROM orders WHERE id = ?',
+            [orderId]
+        );
+        if (orders.length === 0) {
+            return sendError(res, '订单不存在', 404);
+        }
+        const order = orders[0];
+        if (order.buyer_id !== userId && order.seller_id !== userId) {
+            return sendError(res, '只能操作自己的订单', 403);
+        }
+
         if (expressNo !== undefined) {
             await db.query('UPDATE orders SET status = ?, express_no = ? WHERE id = ?', [status, expressNo, orderId]);
         } else {
             await db.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
         }
-        res.json({ success: true, message: '状态已更新' });
+        sendSuccess(res, null, '状态已更新');
     } catch (error) {
         console.error('更新订单失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.put('/api/orders/:id/cancel', async (req, res) => {
+app.put('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
     const orderId = req.params.id;
+    const userId = req.user.userId;
+
     try {
-        const [orders] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+        const [orders] = await db.query(
+            'SELECT buyer_id, product_id FROM orders WHERE id = ?',
+            [orderId]
+        );
         if (orders.length === 0) {
-            return res.status(404).json({ success: false, message: '订单不存在' });
+            return sendError(res, '订单不存在', 404);
         }
+        if (orders[0].buyer_id !== userId) {
+            return sendError(res, '只能取消自己的订单', 403);
+        }
+
         await db.query('UPDATE orders SET status = "已取消" WHERE id = ?', [orderId]);
         await db.query('UPDATE products SET stock = stock + 1 WHERE id = ?', [orders[0].product_id]);
-        res.json({ success: true, message: '订单已取消' });
+        sendSuccess(res, null, '订单已取消');
     } catch (error) {
         console.error('取消订单失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-app.put('/api/orders/:id/refund', async (req, res) => {
+app.put('/api/orders/:id/refund', authenticateToken, async (req, res) => {
     const orderId = req.params.id;
+    const userId = req.user.userId;
     const { action } = req.body;
+
     try {
-        const [orders] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+        const [orders] = await db.query(
+            'SELECT buyer_id, product_id, status FROM orders WHERE id = ?',
+            [orderId]
+        );
         if (orders.length === 0) {
-            return res.status(404).json({ success: false, message: '订单不存在' });
+            return sendError(res, '订单不存在', 404);
         }
+        if (orders[0].buyer_id !== userId && req.user.role !== 'admin') {
+            return sendError(res, '只能操作自己的订单', 403);
+        }
+        if (orders[0].status !== '退款中') {
+            return sendError(res, '当前订单状态不支持退款操作', 400);
+        }
+
         if (action === 'confirm') {
             await db.query('UPDATE orders SET status = "已退款" WHERE id = ?', [orderId]);
             await db.query('UPDATE products SET stock = stock + 1 WHERE id = ?', [orders[0].product_id]);
         } else if (action === 'reject') {
             await db.query('UPDATE orders SET status = "待发货" WHERE id = ?', [orderId]);
+        } else {
+            return sendError(res, '无效的操作参数', 400);
         }
-        res.json({ success: true, message: '处理成功' });
+        sendSuccess(res, null, '处理成功');
     } catch (error) {
         console.error('退款处理失败:', error);
-        res.status(500).json({ success: false, message: '操作失败' });
+        sendError(res, '操作失败', 500);
     }
 });
 
-// ========== 图片上传接口 ==========
+// ========== 图片上传接口（需要登录） ==========
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ success: false, message: '没有上传文件' });
+            return sendError(res, '没有上传文件', 400);
         }
         const imageUrl = `/uploads/${req.file.filename}`;
-        res.json({ success: true, url: imageUrl, message: '上传成功' });
+        sendSuccess(res, { url: imageUrl }, '上传成功');
     } catch (error) {
         console.error('上传失败:', error);
-        res.status(500).json({ success: false, message: '上传失败' });
+        sendError(res, '上传失败', 500);
     }
 });
 
-app.post('/api/upload-multiple', upload.array('images', 9), (req, res) => {
+app.post('/api/upload-multiple', authenticateToken, upload.array('images', 9), (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ success: false, message: '没有上传文件' });
+            return sendError(res, '没有上传文件', 400);
         }
         const urls = req.files.map(file => `/uploads/${file.filename}`);
-        res.json({ success: true, urls: urls, message: '上传成功' });
+        sendSuccess(res, { urls: urls }, '上传成功');
     } catch (error) {
         console.error('上传失败:', error);
-        res.status(500).json({ success: false, message: '上传失败' });
+        sendError(res, '上传失败', 500);
     }
 });
 
@@ -739,4 +892,5 @@ app.listen(PORT, () => {
     console.log('📋 订单接口已注册');
     console.log('📤 图片上传接口已注册');
     console.log('📧 邮件服务已配置');
+    console.log('🔐 JWT 认证已启用');
 });
