@@ -3,381 +3,347 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的订单 - 绿屿</title>
+    <title>我的订单 - 绿屿二手</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .order-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #e0ede6; padding-bottom: 10px; flex-wrap: wrap; }
-        .order-tab { padding: 8px 20px; cursor: pointer; border-radius: 30px; }
-        .order-tab.active { background: #4caf7f; color: white; }
-        .order-role-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .role-tab { padding: 10px 24px; border: 2px solid #e0ede6; border-radius: 40px; cursor: pointer; background: white; }
-        .role-tab.active { border-color: #4caf7f; background: #4caf7f; color: white; }
-        .order-card { background: white; border-radius: 20px; margin-bottom: 20px; overflow: hidden; }
-        .order-header { background: #f8fcf9; padding: 15px 20px; display: flex; justify-content: space-between; border-bottom: 1px solid #e0ede6; flex-wrap: wrap; gap: 10px; }
-        .order-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
-        .status-wait-pay { background: #fff3e0; color: #ff9800; }
-        .status-wait-ship { background: #e3f2fd; color: #2196f3; }
-        .status-shipped { background: #e8f5e9; color: #4caf7f; }
-        .status-completed { background: #e0f2fe; color: #0284c7; }
-        .status-cancelled { background: #ffebee; color: #d32f2f; }
-        .order-item { display: flex; gap: 20px; padding: 20px; border-bottom: 1px solid #f0f5f2; flex-wrap: wrap; }
-        .order-item-img { font-size: 60px; background: #f8fcf9; width: 80px; height: 80px; border-radius: 16px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .order-item-img img { width: 100%; height: 100%; object-fit: cover; }
-        .order-footer { padding: 15px 20px; display: flex; justify-content: flex-end; gap: 15px; border-top: 1px solid #f0f5f2; }
-        .express-input { width: 100%; padding: 12px; border: 1px solid #e0ede6; border-radius: 12px; margin: 15px 0; font-size: 14px; }
-        .address-info { padding: 10px 15px; background: #f8fcf9; border-radius: 12px; margin: 10px 0; font-size: 13px; color: #666; }
+        .orders-container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .orders-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        .orders-header h2 { font-size: 24px; color: #3b4a4a; margin: 0; }
+        .orders-header h2 span { background: linear-gradient(135deg, #4caf7f 0%, #7ec8e0 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .order-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .order-tabs button { padding: 8px 20px; border: 1px solid #d4e2da; border-radius: 40px; background: white; color: #5a6a6a; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .order-tabs button:hover { border-color: #4caf7f; }
+        .order-tabs button.active { background: #4caf7f; color: white; border-color: #4caf7f; }
+        .order-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: 1px solid #e8f0ec; }
+        .order-card .order-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #e8f0ec; flex-wrap: wrap; gap: 8px; }
+        .order-card .order-id { font-size: 13px; color: #7a8a8a; }
+        .order-card .order-status { font-size: 14px; font-weight: 600; }
+        .order-card .order-status.pending { color: #ff9800; }
+        .order-card .order-status.shipped { color: #2196f3; }
+        .order-card .order-status.completed { color: #4caf7f; }
+        .order-card .order-status.cancelled { color: #9e9e9e; }
+        .order-card .order-status.refund { color: #f44336; }
+        .order-card .order-body { display: flex; align-items: center; gap: 16px; padding: 16px 0; }
+        .order-card .order-img { width: 80px; height: 80px; border-radius: 12px; background: #f5f8f6; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; }
+        .order-card .order-info { flex: 1; }
+        .order-card .order-title { font-weight: 500; color: #3b4a4a; margin-bottom: 4px; }
+        .order-card .order-meta { font-size: 13px; color: #7a8a8a; }
+        .order-card .order-price { font-weight: 600; color: #4caf7f; font-size: 18px; }
+        .order-card .order-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .order-card .order-actions button { padding: 6px 16px; border-radius: 40px; border: 1px solid #d4e2da; background: white; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .order-card .order-actions button:hover { border-color: #4caf7f; background: #f8fcf9; }
+        .order-card .order-actions button.btn-primary { background: #4caf7f; color: white; border-color: #4caf7f; }
+        .order-card .order-actions button.btn-primary:hover { background: #43a047; }
+        .order-card .order-actions button.btn-danger { border-color: #f28b82; color: #f28b82; }
+        .order-card .order-actions button.btn-danger:hover { background: #fef5f4; }
+        .order-card .order-footer { padding-top: 12px; border-top: 1px solid #e8f0ec; font-size: 13px; color: #7a8a8a; text-align: right; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #7a8a8a; }
+        .empty-state .emoji { font-size: 48px; display: block; margin-bottom: 16px; }
+        .loading { opacity: 0.6; pointer-events: none; }
+        .role-switch { display: flex; gap: 12px; align-items: center; }
+        .role-switch label { font-size: 14px; color: #5a6a6a; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .role-switch input[type="radio"] { accent-color: #4caf7f; }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="container">
-            <a href="index.html" class="logo">🌿 绿屿</a>
-            <div class="nav-links">
-                <a href="index.html">首页</a>
-                <a href="cart.html">购物车</a>
-                <a href="orders.html">我的订单</a>
-                <a href="publish.html">发布闲置</a>
-                <a href="my-products.html">我的商品</a>
-                <span class="user-section">
+<nav class="navbar">
+    <div class="container">
+        <a href="index.html" class="logo">🌿 绿屿</a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="cart.html">购物车</a>
+            <a href="orders.html" style="color:#4caf7f;">我的订单</a>
+            <a href="publish.html">发布闲置</a>
+            <a href="my-products.html">我的商品</a>
+            <span class="user-section">
                     <a href="#" id="authLink" onclick="goToProfile()">登录</a>
                     <span class="separator" id="separator" style="display:none;">|</span>
                     <a href="#" id="logoutLink" style="display:none;" onclick="logout()">退出</a>
                 </span>
-            </div>
         </div>
-    </nav>
-    <div class="container">
-        <h1 style="margin:30px 0 20px;">📋 我的订单</h1>
-        <div class="order-role-tabs" id="roleTabs">
-            <div class="role-tab active" data-role="buyer" onclick="switchRole('buyer')">我是买家</div>
-            <div class="role-tab" data-role="seller" onclick="switchRole('seller')">我是卖家</div>
-        </div>
-        <div class="order-tabs" id="orderTabs">
-            <div class="order-tab active" data-status="all">全部</div>
-            <div class="order-tab" data-status="待付款">待付款</div>
-            <div class="order-tab" data-status="待发货">待发货</div>
-            <div class="order-tab" data-status="已发货">已发货</div>
-            <div class="order-tab" data-status="已完成">已完成</div>
-            <div class="order-tab" data-status="已取消">已取消</div>
-        </div>
-        <div id="ordersList"></div>
     </div>
+</nav>
 
-    <div id="payModal" class="modal">
-        <div class="modal-content">
-            <h3>模拟支付</h3>
-            <p>订单金额</p>
-            <div class="pay-amount" id="payAmount">¥0</div>
-            <div style="display:flex;gap:15px;margin-top:20px">
-                <button class="btn btn-outline" onclick="closePayModal()">取消</button>
-                <button class="btn btn-primary" id="confirmPayBtn">确认支付</button>
-            </div>
+<div class="orders-container">
+    <div class="orders-header">
+        <h2>📋 <span>我的订单</span></h2>
+        <div class="role-switch">
+            <label><input type="radio" name="role" value="buyer" checked onchange="loadOrders()"> 我买的</label>
+            <label><input type="radio" name="role" value="seller" onchange="loadOrders()"> 我卖的</label>
         </div>
     </div>
 
-    <div id="expressModal" class="express-modal">
-        <div class="express-modal-content">
-            <h3>填写快递信息</h3>
-            <input type="text" id="expressNo" class="express-input" placeholder="请输入快递单号">
-            <div style="display:flex;gap:15px;margin-top:20px">
-                <button class="btn btn-outline" onclick="closeExpressModal()">取消</button>
-                <button class="btn btn-primary" id="confirmExpressBtn">确认发货</button>
-            </div>
-        </div>
+    <div class="order-tabs" id="orderTabs">
+        <button class="active" data-status="all" onclick="filterOrders('all')">全部</button>
+        <button data-status="待付款" onclick="filterOrders('待付款')">待付款</button>
+        <button data-status="待发货" onclick="filterOrders('待发货')">待发货</button>
+        <button data-status="待收货" onclick="filterOrders('待收货')">待收货</button>
+        <button data-status="已完成" onclick="filterOrders('已完成')">已完成</button>
+        <button data-status="已取消" onclick="filterOrders('已取消')">已取消</button>
     </div>
 
-    <script>
-        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
-        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        let orders = [];
-        let currentRole = 'buyer';
-        let currentStatus = 'all';
-        let pendingOrderId = null;
+    <div id="ordersList"></div>
+</div>
 
-        function logout() { localStorage.removeItem('currentUser'); window.location.href = 'login.html'; }
+<script src="js/request.js"></script>
 
-        function goToProfile() {
-            const u = JSON.parse(localStorage.getItem('currentUser'));
-            if (!u) { window.location.href = 'login.html'; return; }
-            window.location.href = u.role === 'admin' ? 'admin.html' : 'profile.html';
+<script>
+    let allOrders = [];
+    let currentStatus = 'all';
+    let currentRole = 'buyer';
+
+    // ========== 退出登录 ==========
+    function logout() {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    }
+
+    // ========== 跳转个人中心 ==========
+    function goToProfile() {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        if (!currentUser) {
+            window.location.href = 'login.html';
+            return;
+        }
+        if (currentUser.role === 'admin') {
+            window.location.href = 'admin.html';
+        } else {
+            window.location.href = 'profile.html';
+        }
+    }
+
+    // ========== 更新导航栏 ==========
+    function updateNavBar() {
+        const u = JSON.parse(localStorage.getItem('currentUser'));
+        const authLink = document.getElementById('authLink');
+        const logoutLink = document.getElementById('logoutLink');
+        const separator = document.getElementById('separator');
+
+        if (u) {
+            authLink.textContent = u.nickname;
+            authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
+            logoutLink.style.display = 'inline';
+            if (separator) separator.style.display = 'inline';
+        } else {
+            authLink.textContent = '登录';
+            authLink.style.color = '';
+            logoutLink.style.display = 'none';
+            if (separator) separator.style.display = 'none';
+        }
+    }
+
+    // ========== 加载订单 ==========
+    async function loadOrders() {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        if (!currentUser) {
+            window.location.href = 'login.html';
+            return;
         }
 
-        function updateNavBar() {
-            const u = JSON.parse(localStorage.getItem('currentUser'));
-            const authLink = document.getElementById('authLink');
-            const logoutLink = document.getElementById('logoutLink');
-            const separator = document.getElementById('separator');
-            if (u) {
-                authLink.textContent = u.nickname;
-                authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
-                logoutLink.style.display = 'inline';
-                if (separator) separator.style.display = 'inline';
-            } else {
-                authLink.textContent = '登录';
-                logoutLink.style.display = 'none';
-                if (separator) separator.style.display = 'none';
-            }
+        const role = document.querySelector('input[name="role"]:checked').value;
+        currentRole = role;
+
+        try {
+            const result = await get(`/orders?role=${role}`);
+            allOrders = result.data;
+            renderOrders(currentStatus);
+        } catch (error) {
+            console.error('加载订单失败:', error);
+            document.getElementById('ordersList').innerHTML = `<div class="empty-state"><div class="emoji">⚠️</div><p>加载失败: ${error.message}</p></div>`;
+        }
+    }
+
+    // ========== 渲染订单 ==========
+    function renderOrders(status) {
+        const container = document.getElementById('ordersList');
+        let filtered = allOrders;
+
+        if (status !== 'all') {
+            filtered = filtered.filter(o => o.status === status);
         }
 
-        async function loadOrders() {
-            if (!currentUser) return;
-            try {
-                const response = await fetch(`${API_URL}/orders?userId=${currentUser.id}&role=${currentRole}`);
-                const result = await response.json();
-                if (result.success) {
-                    orders = result.data.map(o => ({
-                        id: o.id,
-                        orderNo: o.order_no || 'SPT' + o.id,
-                        productId: o.product_id,
-                        productTitle: o.title,
-                        productImage: o.image,
-                        price: o.total_amount,
-                        quantity: 1,
-                        totalAmount: o.total_amount,
-                        buyerId: o.buyer_id,
-                        buyerName: o.buyer_name,
-                        sellerId: o.seller_id,
-                        status: o.status,
-                        address: o.address,
-                        expressNo: o.express_no,
-                        createTime: o.create_time
-                    }));
-                }
-            } catch (error) {
-                console.error('加载订单失败:', error);
-                orders = JSON.parse(localStorage.getItem('orders')) || [];
-            }
-            renderOrders();
+        if (!filtered.length) {
+            container.innerHTML = `<div class="empty-state"><div class="emoji">📭</div><h3>暂无订单</h3><p>快去逛逛吧~</p></div>`;
+            return;
         }
 
-        function switchRole(role) {
-            currentRole = role;
-            currentStatus = 'all';
-            document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.role-tab[data-role="${role}"]`).classList.add('active');
-            document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('.order-tab[data-status="all"]').classList.add('active');
+        container.innerHTML = filtered.map(order => `
+                <div class="order-card">
+                    <div class="order-header">
+                        <span class="order-id">订单号：${order.id}</span>
+                        <span class="order-status ${getStatusClass(order.status)}">${order.status}</span>
+                    </div>
+                    <div class="order-body">
+                        <div class="order-img">${order.image || '📦'}</div>
+                        <div class="order-info">
+                            <div class="order-title">${escapeHtml(order.title)}</div>
+                            <div class="order-meta">数量：1 | ${order.create_time ? new Date(order.create_time).toLocaleString() : ''}</div>
+                        </div>
+                        <div class="order-price">¥${order.total_amount || 0}</div>
+                    </div>
+                    <div class="order-actions">
+                        ${getOrderActions(order)}
+                    </div>
+                    ${order.express_no ? `<div class="order-footer">📦 物流单号：${order.express_no}</div>` : ''}
+                </div>
+            `).join('');
+    }
+
+    // ========== 获取状态样式 ==========
+    function getStatusClass(status) {
+        const map = {
+            '待付款': 'pending',
+            '待发货': 'shipped',
+            '待收货': 'shipped',
+            '已完成': 'completed',
+            '已取消': 'cancelled',
+            '已退款': 'refund'
+        };
+        return map[status] || '';
+    }
+
+    // ========== 获取订单操作按钮 ==========
+    function getOrderActions(order) {
+        let actions = '';
+
+        if (order.status === '待付款' && currentRole === 'buyer') {
+            actions += `<button onclick="cancelOrder(${order.id})" class="btn-danger">取消订单</button>`;
+            actions += `<button onclick="payOrder(${order.id})" class="btn-primary">去付款</button>`;
+        }
+
+        if (order.status === '待发货' && currentRole === 'seller') {
+            actions += `<button onclick="shipOrder(${order.id})" class="btn-primary">发货</button>`;
+        }
+
+        if (order.status === '待收货' && currentRole === 'buyer') {
+            actions += `<button onclick="confirmOrder(${order.id})" class="btn-primary">确认收货</button>`;
+        }
+
+        if (order.status === '已完成' && currentRole === 'buyer') {
+            actions += `<button onclick="requestRefund(${order.id})" class="btn-danger">申请退款</button>`;
+        }
+
+        if (order.status === '退款中' && currentRole === 'seller') {
+            actions += `<button onclick="handleRefund(${order.id}, 'confirm')" class="btn-primary">同意退款</button>`;
+            actions += `<button onclick="handleRefund(${order.id}, 'reject')" class="btn-danger">拒绝退款</button>`;
+        }
+
+        return actions || `<span style="color:#7a8a8a;font-size:13px;">暂无操作</span>`;
+    }
+
+    // ========== 取消订单 ==========
+    async function cancelOrder(orderId) {
+        if (!confirm('确定要取消该订单吗？')) return;
+        try {
+            await put(`/orders/${orderId}/cancel`);
+            alert('订单已取消');
             loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        function getStatusClass(s) {
-            const map = { '待付款':'wait-pay', '待发货':'wait-ship', '已发货':'shipped', '已完成':'completed', '已取消':'cancelled', '待退款':'wait-refund', '已退款':'refunded' };
-            return map[s] || 'wait-pay';
+    // ========== 付款 ==========
+    async function payOrder(orderId) {
+        try {
+            await put(`/orders/${orderId}`, { status: '待发货' });
+            alert('付款成功！等待卖家发货');
+            loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        function openPayModal(id) {
-            let o = orders.find(o => o.id == id);
-            if(o) { pendingOrderId = id; document.getElementById('payAmount').innerHTML = '¥'+o.totalAmount; document.getElementById('payModal').classList.add('active'); }
+    // ========== 发货 ==========
+    async function shipOrder(orderId) {
+        const expressNo = prompt('请输入物流单号：');
+        if (expressNo === null) return;
+        if (!expressNo.trim()) {
+            alert('请输入物流单号');
+            return;
         }
-
-        function closePayModal() { document.getElementById('payModal').classList.remove('active'); pendingOrderId = null; }
-
-        async function confirmPay() {
-            if(!pendingOrderId) return;
-            try {
-                await fetch(`${API_URL}/orders/${pendingOrderId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: '待发货' })
-                });
-                alert('支付成功');
-                closePayModal();
-                loadOrders();
-            } catch (error) {
-                console.error('支付失败:', error);
-                alert('支付失败，请重试');
-            }
+        try {
+            await put(`/orders/${orderId}`, { status: '待收货', expressNo: expressNo.trim() });
+            alert('发货成功！');
+            loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        async function cancelOrder(id) {
-            if(!confirm('取消订单？')) return;
-            try {
-                await fetch(`${API_URL}/orders/${id}/cancel`, { method: 'PUT' });
-                alert('订单已取消');
-                loadOrders();
-            } catch (error) {
-                console.error('取消失败:', error);
-                alert('取消失败，请重试');
-            }
+    // ========== 确认收货 ==========
+    async function confirmOrder(orderId) {
+        if (!confirm('确认已收到商品？')) return;
+        try {
+            await put(`/orders/${orderId}`, { status: '已完成' });
+            alert('收货成功！感谢您的购买');
+            loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        async function confirmReceive(id) {
-            if(!confirm('确认收货？')) return;
-            try {
-                await fetch(`${API_URL}/orders/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: '已完成' })
-                });
-                alert('收货成功');
-                loadOrders();
-            } catch (error) {
-                console.error('确认收货失败:', error);
-                alert('操作失败，请重试');
-            }
+    // ========== 申请退款 ==========
+    async function requestRefund(orderId) {
+        if (!confirm('确定要申请退款吗？')) return;
+        try {
+            await put(`/orders/${orderId}`, { status: '退款中' });
+            alert('退款申请已提交，等待卖家处理');
+            loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        function openExpressModal(id) {
-            pendingOrderId = id;
-            document.getElementById('expressNo').value = '';
-            document.getElementById('expressModal').classList.add('active');
+    // ========== 处理退款 ==========
+    async function handleRefund(orderId, action) {
+        const text = action === 'confirm' ? '同意退款' : '拒绝退款';
+        if (!confirm(`确定要${text}吗？`)) return;
+        try {
+            await put(`/orders/${orderId}/refund`, { action });
+            alert(`${text}成功`);
+            loadOrders();
+        } catch (error) {
+            alert(error.message);
         }
+    }
 
-        function closeExpressModal() {
-            document.getElementById('expressModal').classList.remove('active');
-            pendingOrderId = null;
-        }
-
-        async function confirmExpress() {
-            if(!pendingOrderId) return;
-            let expressNo = document.getElementById('expressNo').value.trim();
-            if(!expressNo) { alert('请输入快递单号'); return; }
-            try {
-                await fetch(`${API_URL}/orders/${pendingOrderId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: '已发货', expressNo })
-                });
-                alert('发货成功');
-                closeExpressModal();
-                loadOrders();
-            } catch (error) {
-                console.error('发货失败:', error);
-                alert('发货失败，请重试');
-            }
-        }
-
-        async function confirmRefund(id) {
-            if(!confirm('确认退款？')) return;
-            try {
-                await fetch(`${API_URL}/orders/${id}/refund`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'confirm' })
-                });
-                alert('已确认退款');
-                loadOrders();
-            } catch (error) {
-                console.error('退款确认失败:', error);
-                alert('操作失败，请重试');
-            }
-        }
-
-        async function rejectRefund(id) {
-            if(!confirm('驳回退款申请？')) return;
-            try {
-                await fetch(`${API_URL}/orders/${id}/refund`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'reject' })
-                });
-                alert('已驳回退款申请');
-                loadOrders();
-            } catch (error) {
-                console.error('驳回失败:', error);
-                alert('操作失败，请重试');
-            }
-        }
-
-        function renderOrders() {
-            if(!currentUser) {
-                document.getElementById('ordersList').innerHTML = '<div class="empty-state"><div class="emoji">🔒</div><h3>请先登录</h3><a href="login.html" class="btn btn-primary">去登录</a></div>';
-                return;
-            }
-
-            let userOrders = [...orders];
-            if (currentStatus !== 'all') {
-                userOrders = userOrders.filter(o => o.status === currentStatus);
-            }
-
-            if(!userOrders.length) {
-                document.getElementById('ordersList').innerHTML = '<div class="empty-state"><div class="emoji">📦</div><h3>暂无订单</h3></div>';
-                return;
-            }
-
-            document.getElementById('ordersList').innerHTML = userOrders.map(o => {
-                let buttons = '';
-                if (currentRole === 'buyer') {
-                    if (o.status === '待付款') {
-                        buttons = `<button class="btn btn-primary" onclick="openPayModal('${o.id}')">立即支付</button>
-                                  <button class="btn btn-outline" onclick="cancelOrder('${o.id}')">取消</button>`;
-                    } else if (o.status === '待发货') {
-                        buttons = `<button class="btn btn-outline" onclick="cancelOrder('${o.id}')">取消</button>`;
-                    } else if (o.status === '已发货') {
-                        buttons = `<button class="btn btn-primary" onclick="confirmReceive('${o.id}')">确认收货</button>
-                                  <button class="btn btn-outline" onclick="cancelOrder('${o.id}')">取消</button>`;
-                    }
-                } else {
-                    if (o.status === '待付款') {
-                        buttons = `<button class="btn btn-outline" onclick="cancelOrder('${o.id}')">取消</button>`;
-                    } else if (o.status === '待发货') {
-                        buttons = `<button class="btn btn-primary" onclick="openExpressModal('${o.id}')">发货</button>
-                                  <button class="btn btn-outline" onclick="cancelOrder('${o.id}')">取消</button>`;
-                    } else if (o.status === '已发货' && o.expressNo) {
-                        buttons = `<span style="color:#666;font-size:12px">快递：${o.expressNo}</span>`;
-                    }
-                }
-
-                let imageHtml = o.productImage && o.productImage.startsWith('data:') || o.productImage && o.productImage.startsWith('http')
-                    ? `<img src="${o.productImage}" onerror="this.textContent='📦'">`
-                    : `<span style="font-size:48px">${o.productImage || '📦'}</span>`;
-
-                return `<div class="order-card">
-                            <div class="order-header">
-                                <span>订单号：${o.orderNo}</span>
-                                <span class="order-status status-${getStatusClass(o.status)}">${o.status}</span>
-                            </div>
-                            <div class="order-item">
-                                <div class="order-item-img">${imageHtml}</div>
-                                <div>
-                                    <div style="font-weight:600">${escapeHtml(o.productTitle)}</div>
-                                    <div>数量：${o.quantity}</div>
-                                    ${o.address ? `<div class="address-info">收货地址：${escapeHtml(o.address)}</div>` : ''}
-                                </div>
-                                <div style="margin-left:auto;font-weight:bold;color:#4caf7f">¥${o.totalAmount}</div>
-                            </div>
-                            <div class="order-footer">${buttons}</div>
-                        </div>`;
-            }).join('');
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            return text.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        document.getElementById('orderTabs').addEventListener('click', (e) => {
-            let tab = e.target.closest('.order-tab');
-            if(tab) {
-                document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                currentStatus = tab.dataset.status;
-                renderOrders();
-            }
+    // ========== 筛选订单 ==========
+    function filterOrders(status) {
+        currentStatus = status;
+        document.querySelectorAll('.order-tabs button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.status === status);
         });
+        renderOrders(status);
+    }
 
-        document.getElementById('confirmPayBtn').addEventListener('click', confirmPay);
-        document.getElementById('confirmExpressBtn').addEventListener('click', confirmExpress);
+    // ========== HTML 转义 ==========
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
 
-        loadOrders();
-        updateNavBar();
+    // ========== 初始化 ==========
+    updateNavBar();
+    loadOrders();
 
-        window.switchRole = switchRole;
-        window.openPayModal = openPayModal;
-        window.closePayModal = closePayModal;
-        window.cancelOrder = cancelOrder;
-        window.confirmReceive = confirmReceive;
-        window.openExpressModal = openExpressModal;
-        window.closeExpressModal = closeExpressModal;
-        window.confirmRefund = confirmRefund;
-        window.rejectRefund = rejectRefund;
-        window.logout = logout;
-        window.goToProfile = goToProfile;
-    </script>
+    // 暴露全局函数
+    window.logout = logout;
+    window.goToProfile = goToProfile;
+    window.loadOrders = loadOrders;
+    window.filterOrders = filterOrders;
+    window.cancelOrder = cancelOrder;
+    window.payOrder = payOrder;
+    window.shipOrder = shipOrder;
+    window.confirmOrder = confirmOrder;
+    window.requestRefund = requestRefund;
+    window.handleRefund = handleRefund;
+</script>
 </body>
 </html>

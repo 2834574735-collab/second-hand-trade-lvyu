@@ -42,17 +42,17 @@
         <div class="product-grid" id="productGrid"></div>
     </div>
 
+    <script src="js/request.js"></script>
+
     <script>
-        // 后端 API 地址
-        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
-        
         let products = [];
         let currentCategory = 'all';
 
         // ========== 退出登录 ==========
-        function logout() { 
-            localStorage.removeItem('currentUser'); 
-            window.location.href = 'login.html'; 
+        function logout() {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
         }
 
         // ========== 点击昵称跳转 ==========
@@ -75,7 +75,7 @@
             const authLink = document.getElementById('authLink');
             const logoutLink = document.getElementById('logoutLink');
             const separator = document.getElementById('separator');
-            
+
             if (u) {
                 authLink.textContent = u.nickname;
                 authLink.style.color = u.role === 'admin' ? '#ff9800' : '#4caf7f';
@@ -92,57 +92,52 @@
         // ========== 从后端加载商品 ==========
         async function loadProducts() {
             try {
-                const response = await fetch(`${API_URL}/products`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    products = result.data;
-                    renderProducts(currentCategory, '');
-                } else {
-                    console.error('加载商品失败:', result.message);
-                }
+                // ✅ 使用 request.js 中的 get 方法
+                const result = await get('/products');
+                products = result.data;
+                renderProducts(currentCategory, '');
             } catch (error) {
-                console.error('网络错误:', error);
-                document.getElementById('productGrid').innerHTML = '<div class="empty-state"><div class="emoji">⚠️</div><h3>无法连接后端服务</h3><p>请确保后端服务已启动</p></div>';
+                console.error('加载商品失败:', error);
+                document.getElementById('productGrid').innerHTML = '<div class="empty-state"><div class="emoji">⚠️</div><h3>无法连接后端服务</h3><p>' + error.message + '</p></div>';
             }
         }
 
         // ========== 渲染商品 ==========
         function renderProducts(cat = 'all', kw = '') {
             let f = products.filter(p => p.status === '在售');
-            
+
             if (cat !== 'all') {
                 f = f.filter(p => p.category === cat);
             }
-            
+
             if (kw && kw.trim() !== '') {
                 const lowerKw = kw.toLowerCase().trim();
-                f = f.filter(p => 
-                    p.title.toLowerCase().includes(lowerKw) || 
+                f = f.filter(p =>
+                    p.title.toLowerCase().includes(lowerKw) ||
                     (p.description && p.description.toLowerCase().includes(lowerKw)) ||
                     (p.seller_name && p.seller_name.toLowerCase().includes(lowerKw))
                 );
             }
-            
+
             const grid = document.getElementById('productGrid');
             if (!f.length) {
                 grid.innerHTML = `<div class="empty-state"><div class="emoji">🔍</div><h3>没有找到相关商品</h3><p>试试其他关键词吧~</p></div>`;
                 return;
             }
-            
+
             grid.innerHTML = f.map(p => `
-                <div class="product-card" onclick="goToDetail(${p.id})">
-                    <div class="product-img">${p.image || '📦'}</div>
-                    <div class="product-info">
-                        <div class="product-title">${escapeHtml(p.title)}</div>
-                        <div class="product-price">${p.price}</div>
-                        <div class="product-meta">
-                            <span>${p.condition || '未知'}</span>
-                            <span>${p.seller_name || '未知卖家'}</span>
-                        </div>
+            <div class="product-card" onclick="goToDetail(${p.id})">
+                <div class="product-img">${p.image || '📦'}</div>
+                <div class="product-info">
+                    <div class="product-title">${escapeHtml(p.title)}</div>
+                    <div class="product-price">${p.price}</div>
+                    <div class="product-meta">
+                        <span>${p.condition || '未知'}</span>
+                        <span>${p.seller_name || '未知卖家'}</span>
                     </div>
                 </div>
-            `).join('');
+            </div>
+        `).join('');
         }
 
         function escapeHtml(text) {
@@ -156,13 +151,13 @@
         }
 
         // ========== 搜索 ==========
-        function searchProducts() { 
-            renderProducts(currentCategory, document.getElementById('searchInput').value); 
+        function searchProducts() {
+            renderProducts(currentCategory, document.getElementById('searchInput').value);
         }
 
         // ========== 跳转详情页 ==========
-        function goToDetail(id) { 
-            window.location.href = `product-detail.html?id=${id}`; 
+        function goToDetail(id) {
+            window.location.href = `product-detail.html?id=${id}`;
         }
 
         // ========== 分类切换 ==========
@@ -178,7 +173,7 @@
         // ========== 初始化 ==========
         loadProducts();
         updateNavBar();
-        
+
         window.searchProducts = searchProducts;
         window.goToDetail = goToDetail;
         window.logout = logout;

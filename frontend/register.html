@@ -34,8 +34,10 @@
         </div>
     </div>
 
+    <script src="js/request.js"></script>
+
     <script>
-        const API_URL = 'https://lvyu-backend-production-74eb.up.railway.app/api';
+        const API_URL = 'http://localhost:3000/api';
 
         document.getElementById('registerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -82,26 +84,21 @@
             
             registerBtn.textContent = '注册中...';
             registerBtn.classList.add('loading');
-            
+
             try {
-                const response = await fetch(`${API_URL}/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, nickname, phone, email, password })
+                const result = await post('/register', {
+                    username,
+                    nickname,
+                    phone,
+                    email,
+                    password
                 });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('注册成功！请登录');
-                    window.location.href = 'login.html';
-                } else {
-                    errorMsg.textContent = result.message || '注册失败';
-                }
+
+                alert('注册成功！请登录');
+                window.location.href = 'login.html';
             } catch (error) {
-                console.error('注册失败:', error);
-                errorMsg.textContent = '网络错误，请确保后端服务已启动';
-            } finally {
+                errorMsg.textContent = error.message || '注册失败';
+            }finally {
                 registerBtn.textContent = '注册';
                 registerBtn.classList.remove('loading');
             }
