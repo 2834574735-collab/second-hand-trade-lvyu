@@ -6,84 +6,584 @@
     <title>注册 - 绿屿二手</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .register-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #e8f5ef 0%, #d4e8df 100%); }
-        .register-card { background: white; padding: 40px; border-radius: 32px; width: 100%; max-width: 450px; }
-        .register-card h2 { text-align: center; margin-bottom: 32px; }
-        .register-card .btn-primary { width: 100%; padding: 14px; }
-        .login-link { text-align: center; margin-top: 24px; }
-        .login-link a { color: #4caf7f; text-decoration: none; }
-        .error-msg { color: #f28b82; font-size: 14px; margin-top: 16px; text-align: center; }
-        .loading { opacity: 0.6; pointer-events: none; }
+        /* ========== 注册页面样式 ========== */
+        .register-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #e8f5ef 0%, #d4e8df 100%);
+            padding: 20px;
+        }
+
+        .register-card {
+            background: white;
+            padding: 40px 36px;
+            border-radius: 32px;
+            width: 100%;
+            max-width: 460px;
+            box-shadow: 0 20px 40px rgba(76, 175, 127, 0.12);
+            transition: transform 0.2s;
+        }
+
+        .register-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .register-card h2 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #3b4a4a;
+            font-size: 28px;
+        }
+
+        .register-card h2 span {
+            background: linear-gradient(135deg, #4caf7f 0%, #7ec8e0 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .register-card .subtitle {
+            text-align: center;
+            color: #7a8a8a;
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+
+        .register-card .btn-primary {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            margin-top: 8px;
+            transition: all 0.3s;
+        }
+
+        .register-card .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(76, 175, 127, 0.3);
+        }
+
+        .register-card .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: #7a8a8a;
+        }
+
+        .login-link a {
+            color: #4caf7f;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .login-link a:hover {
+            color: #388e3c;
+            text-decoration: underline;
+        }
+
+        /* ========== 表单组 ========== */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: #5a6a6a;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .form-group label .required {
+            color: #f28b82;
+            margin-left: 2px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0ede6;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            background: #fafcfa;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4caf7f;
+            box-shadow: 0 0 0 4px rgba(76, 175, 127, 0.12);
+            background: white;
+        }
+
+        .form-group input.error {
+            border-color: #f28b82;
+            box-shadow: 0 0 0 4px rgba(242, 139, 130, 0.12);
+        }
+
+        .form-group input.success {
+            border-color: #4caf7f;
+        }
+
+        .form-group .hint {
+            font-size: 12px;
+            color: #7a8a8a;
+            margin-top: 4px;
+            display: block;
+        }
+
+        .form-group .hint.error {
+            color: #f28b82;
+        }
+
+        .form-group .hint.success {
+            color: #4caf7f;
+        }
+
+        /* ========== 密码强度指示器 ========== */
+        .password-strength {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .password-strength .bar {
+            flex: 1;
+            height: 4px;
+            background: #e0ede6;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .password-strength .bar.active.weak {
+            background: #f28b82;
+        }
+
+        .password-strength .bar.active.medium {
+            background: #ffb74d;
+        }
+
+        .password-strength .bar.active.strong {
+            background: #4caf7f;
+        }
+
+        .password-strength-text {
+            font-size: 12px;
+            margin-top: 4px;
+            color: #7a8a8a;
+        }
+
+        .password-strength-text.weak {
+            color: #f28b82;
+        }
+
+        .password-strength-text.medium {
+            color: #ffb74d;
+        }
+
+        .password-strength-text.strong {
+            color: #4caf7f;
+        }
+
+        /* ========== 提示消息 ========== */
+        .error-msg {
+            color: #f28b82;
+            font-size: 14px;
+            margin-top: 16px;
+            text-align: center;
+            min-height: 24px;
+        }
+
+        .success-msg {
+            color: #4caf7f;
+            font-size: 14px;
+            margin-top: 16px;
+            text-align: center;
+            min-height: 24px;
+        }
+
+        /* ========== 加载状态 ========== */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e0ede6;
+            border-top-color: #4caf7f;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 480px) {
+            .register-card {
+                padding: 24px 18px;
+            }
+
+            .register-card h2 {
+                font-size: 22px;
+            }
+
+            .form-group input {
+                font-size: 14px;
+                padding: 10px 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="register-container">
-        <div class="register-card">
-            <h2>🌿 注册新账号</h2>
-            <form id="registerForm">
-                <div class="form-group"><label>用户名（4-20字符）*</label><input type="text" id="username" placeholder="字母、数字、下划线" required></div>
-                <div class="form-group"><label>昵称 *</label><input type="text" id="nickname" placeholder="界面显示名称" required></div>
-                <div class="form-group"><label>手机号 *</label><input type="tel" id="phone" placeholder="11位手机号" required></div>
-                <div class="form-group"><label>邮箱 *</label><input type="email" id="email" placeholder="用于找回密码，请填写真实邮箱" required></div>
-                <div class="form-group"><label>密码 *</label><input type="password" id="password" placeholder="6-20位" required></div>
-                <div class="form-group"><label>确认密码 *</label><input type="password" id="confirmPassword" placeholder="再次输入密码" required></div>
-                <button type="submit" class="btn btn-primary" id="registerBtn">注册</button>
-                <div class="login-link"><a href="login.html">已有账号？立即登录</a></div>
-                <div id="errorMsg" class="error-msg"></div>
-            </form>
+<div class="register-container">
+    <div class="register-card">
+        <!-- ========== 标题 ========== -->
+        <h2>🌿 <span>注册新账号</span></h2>
+        <p class="subtitle">加入绿屿，开启绿色生活</p>
+
+        <!-- ========== 注册表单 ========== -->
+        <form id="registerForm" novalidate>
+            <!-- 用户名 -->
+            <div class="form-group">
+                <label for="username">
+                    用户名 <span class="required">*</span>
+                </label>
+                <input
+                        type="text"
+                        id="username"
+                        placeholder="4-20位字母、数字或下划线"
+                        required
+                        autofocus
+                        autocomplete="username"
+                >
+                <span class="hint" id="usernameHint">💡 用于登录，4-20位字母/数字/下划线</span>
+            </div>
+
+            <!-- 昵称 -->
+            <div class="form-group">
+                <label for="nickname">
+                    昵称 <span class="required">*</span>
+                </label>
+                <input
+                        type="text"
+                        id="nickname"
+                        placeholder="请输入您的昵称"
+                        required
+                        autocomplete="nickname"
+                >
+                <span class="hint">💡 显示在商品和评论中</span>
+            </div>
+
+            <!-- 手机号 -->
+            <div class="form-group">
+                <label for="phone">
+                    手机号 <span class="required">*</span>
+                </label>
+                <input
+                        type="tel"
+                        id="phone"
+                        placeholder="11位手机号"
+                        required
+                        autocomplete="tel"
+                        maxlength="11"
+                        inputmode="numeric"
+                >
+                <span class="hint" id="phoneHint">💡 用于身份验证和联系</span>
+            </div>
+
+            <!-- 邮箱 -->
+            <div class="form-group">
+                <label for="email">
+                    邮箱 <span class="required">*</span>
+                </label>
+                <input
+                        type="email"
+                        id="email"
+                        placeholder="your@email.com"
+                        required
+                        autocomplete="email"
+                >
+                <span class="hint">💡 用于找回密码，请填写真实邮箱</span>
+            </div>
+
+            <!-- 密码 -->
+            <div class="form-group">
+                <label for="password">
+                    密码 <span class="required">*</span>
+                </label>
+                <input
+                        type="password"
+                        id="password"
+                        placeholder="至少6位，包含大小写字母和数字"
+                        required
+                        autocomplete="new-password"
+                        minlength="6"
+                >
+                <div class="password-strength" id="passwordStrength">
+                    <span class="bar" data-index="0"></span>
+                    <span class="bar" data-index="1"></span>
+                    <span class="bar" data-index="2"></span>
+                </div>
+                <span class="password-strength-text" id="strengthText">请输入密码</span>
+            </div>
+
+            <!-- 确认密码 -->
+            <div class="form-group">
+                <label for="confirmPassword">
+                    确认密码 <span class="required">*</span>
+                </label>
+                <input
+                        type="password"
+                        id="confirmPassword"
+                        placeholder="再次输入密码"
+                        required
+                        autocomplete="new-password"
+                >
+            </div>
+
+            <button
+                    type="submit"
+                    class="btn btn-primary"
+                    id="registerBtn"
+            >
+                🚀 注册
+            </button>
+
+            <div id="errorMsg" class="error-msg"></div>
+        </form>
+
+        <!-- ========== 登录入口 ========== -->
+        <div class="login-link">
+            已有账号？<a href="login.html">立即登录 →</a>
         </div>
     </div>
+</div>
 
-    <script src="js/request.js"></script>
+<!-- ========== JavaScript ========== -->
+<script src="js/request.js"></script>
+<script>
+    /**
+     * ============================================
+     * 绿屿二手 - 注册页面逻辑
+     * 技术栈：原生 JS + request.js (封装 fetch)
+     * ============================================
+     */
 
-    <script>
-        const API_URL = 'http://localhost:3000/api';
+    (function() {
+        'use strict';
 
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        // ========== DOM 引用 ==========
+        const DOM = {
+            form: document.getElementById('registerForm'),
+            username: document.getElementById('username'),
+            nickname: document.getElementById('nickname'),
+            phone: document.getElementById('phone'),
+            email: document.getElementById('email'),
+            password: document.getElementById('password'),
+            confirmPassword: document.getElementById('confirmPassword'),
+            registerBtn: document.getElementById('registerBtn'),
+            errorMsg: document.getElementById('errorMsg'),
+            usernameHint: document.getElementById('usernameHint'),
+            phoneHint: document.getElementById('phoneHint'),
+            strengthBars: document.querySelectorAll('#passwordStrength .bar'),
+            strengthText: document.getElementById('strengthText'),
+        };
+
+        // ========== 工具函数 ==========
+
+        /** 显示错误消息 */
+        function showError(message) {
+            DOM.errorMsg.textContent = message || '注册失败，请重试';
+            DOM.errorMsg.className = 'error-msg';
+        }
+
+        /** 清空错误消息 */
+        function clearError() {
+            DOM.errorMsg.textContent = '';
+            DOM.errorMsg.className = 'error-msg';
+        }
+
+        /** 设置按钮加载状态 */
+        function setLoading(isLoading) {
+            if (isLoading) {
+                DOM.registerBtn.disabled = true;
+                DOM.registerBtn.classList.add('loading');
+                DOM.registerBtn.innerHTML = '<span class="spinner"></span>注册中...';
+            } else {
+                DOM.registerBtn.disabled = false;
+                DOM.registerBtn.classList.remove('loading');
+                DOM.registerBtn.textContent = '🚀 注册';
+            }
+        }
+
+        /** 字段实时校验 - 高亮状态 */
+        function setFieldStatus(input, isValid) {
+            if (isValid) {
+                input.classList.remove('error');
+                input.classList.add('success');
+            } else {
+                input.classList.remove('success');
+                if (input.value.length > 0) {
+                    input.classList.add('error');
+                } else {
+                    input.classList.remove('error');
+                }
+            }
+        }
+
+        // ========== 实时校验规则 ==========
+
+        /** 校验用户名 */
+        function validateUsername(value) {
+            const pattern = /^[a-zA-Z0-9_]{4,20}$/;
+            return pattern.test(value);
+        }
+
+        /** 校验手机号 */
+        function validatePhone(value) {
+            return /^1[3-9]\d{9}$/.test(value);
+        }
+
+        /** 校验邮箱 */
+        function validateEmail(value) {
+            return /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/.test(value);
+        }
+
+        /** 计算密码强度 (0-3) */
+        // 密码强度计算（不包含特殊符号）
+        function calculatePasswordStrength(password) {
+            let score = 0;
+            if (password.length >= 6) score++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+            if (/[0-9]/.test(password)) score++;
+            // 不再要求特殊符号，但如果有也加分
+            if (/[^a-zA-Z0-9]/.test(password)) score++;
+            return Math.min(score, 3);
+        }
+
+        // ========== 事件绑定 - 实时校验 ==========
+
+        /** 用户名实时校验 */
+        DOM.username.addEventListener('input', function() {
+            const isValid = validateUsername(this.value);
+            setFieldStatus(this, isValid);
+            DOM.usernameHint.textContent = isValid ?
+                '✅ 用户名可用' :
+                '💡 4-20位字母、数字或下划线';
+            DOM.usernameHint.className = 'hint ' + (isValid ? 'success' : '');
+        });
+
+        /** 手机号实时校验 */
+        DOM.phone.addEventListener('input', function() {
+            // 只允许数字
+            this.value = this.value.replace(/\D/g, '');
+            const isValid = validatePhone(this.value);
+            setFieldStatus(this, isValid);
+            DOM.phoneHint.textContent = isValid ?
+                '✅ 手机号格式正确' :
+                '💡 请输入11位手机号';
+            DOM.phoneHint.className = 'hint ' + (isValid ? 'success' : '');
+        });
+
+        /** 密码强度实时显示 */
+        DOM.password.addEventListener('input', function() {
+            const password = this.value;
+            const strength = calculatePasswordStrength(password);
+
+            // 更新强度条
+            DOM.strengthBars.forEach((bar, index) => {
+                bar.classList.remove('active', 'weak', 'medium', 'strong');
+                if (index < strength) {
+                    bar.classList.add('active');
+                    if (strength <= 1) bar.classList.add('weak');
+                    else if (strength === 2) bar.classList.add('medium');
+                    else bar.classList.add('strong');
+                }
+            });
+
+            // 更新强度文字
+            const texts = ['', '弱', '一般', '强'];
+            const classes = ['', 'weak', 'medium', 'strong'];
+            DOM.strengthText.textContent = password.length > 0 ? `密码强度：${texts[strength]}` : '请输入密码';
+            DOM.strengthText.className = 'password-strength-text ' + (classes[strength] || '');
+        });
+
+        /** 确认密码实时校验 */
+        DOM.confirmPassword.addEventListener('input', function() {
+            const isValid = this.value === DOM.password.value;
+            setFieldStatus(this, isValid);
+        });
+
+        // ========== 表单提交 ==========
+
+        DOM.form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            const username = document.getElementById('username').value.trim();
-            const nickname = document.getElementById('nickname').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const registerBtn = document.getElementById('registerBtn');
-            const errorMsg = document.getElementById('errorMsg');
-            
-            errorMsg.textContent = '';
-            
-            if (!/^[a-zA-Z0-9_]{4,20}$/.test(username)) {
-                errorMsg.textContent = '用户名必须是4-20位字母、数字或下划线';
+            clearError();
+
+            // 1. 获取表单数据
+            const username = DOM.username.value.trim();
+            const nickname = DOM.nickname.value.trim();
+            const phone = DOM.phone.value.trim();
+            const email = DOM.email.value.trim();
+            const password = DOM.password.value;
+            const confirmPassword = DOM.confirmPassword.value;
+
+            // 2. 前端完整校验
+            if (!validateUsername(username)) {
+                showError('用户名必须是4-20位字母、数字或下划线');
+                DOM.username.focus();
                 return;
             }
+
             if (!nickname) {
-                errorMsg.textContent = '请输入昵称';
+                showError('请输入昵称');
+                DOM.nickname.focus();
                 return;
             }
-            if (!/^1[3-9]\d{9}$/.test(phone)) {
-                errorMsg.textContent = '请输入正确的11位手机号';
+
+            if (!validatePhone(phone)) {
+                showError('请输入正确的11位手机号');
+                DOM.phone.focus();
                 return;
             }
-            if (!email) {
-                errorMsg.textContent = '请输入邮箱';
+
+            if (!validateEmail(email)) {
+                showError('请输入正确的邮箱格式');
+                DOM.email.focus();
                 return;
             }
-            if (!/^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/.test(email)) {
-                errorMsg.textContent = '请输入正确的邮箱格式';
-                return;
-            }
+
             if (password.length < 6) {
-                errorMsg.textContent = '密码长度不能少于6位';
+                showError('密码长度不能少于6位');
+                DOM.password.focus();
                 return;
             }
+
             if (password !== confirmPassword) {
-                errorMsg.textContent = '两次输入的密码不一致';
+                showError('两次输入的密码不一致');
+                DOM.confirmPassword.focus();
                 return;
             }
-            
-            registerBtn.textContent = '注册中...';
-            registerBtn.classList.add('loading');
+
+            // 3. 发送注册请求
+            setLoading(true);
 
             try {
                 const result = await post('/register', {
@@ -94,15 +594,25 @@
                     password
                 });
 
-                alert('注册成功！请登录');
+                // 注册成功
+                alert('🎉 注册成功！请登录');
                 window.location.href = 'login.html';
+
             } catch (error) {
-                errorMsg.textContent = error.message || '注册失败';
-            }finally {
-                registerBtn.textContent = '注册';
-                registerBtn.classList.remove('loading');
+                showError(error.message || '注册失败，请重试');
+            } finally {
+                setLoading(false);
             }
         });
-    </script>
+
+        // ========== 输入框聚焦时清空错误 ==========
+        DOM.form.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', clearError);
+        });
+
+        console.log('🌿 绿屿二手注册页面已加载');
+
+    })();
+</script>
 </body>
-</html>
+</html>a
