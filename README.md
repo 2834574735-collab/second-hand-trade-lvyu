@@ -30,3 +30,41 @@ EMAIL_USER=你的QQ邮箱@qq.com
 EMAIL_PASS=你的邮箱授权码
 PORT=3000
 
+## 📡 API 接口文档
+
+### 用户相关
+| 接口 | 方法 | 说明 | 是否需要登录 |
+| :--- | :--- | :--- | :--- |
+| `/api/register` | POST | 用户注册 | ❌ |
+| `/api/login` | POST | 用户登录 | ❌ |
+| `/api/users` | GET | 获取用户列表 | ✅ (管理员) |
+| `/api/users/:id/phone` | PUT | 修改手机号 | ✅ |
+| `/api/users/:id/password` | PUT | 修改密码 | ✅ |
+
+### 商品相关
+| 接口 | 方法 | 说明 | 是否需要登录 |
+| :--- | :--- | :--- | :--- |
+| `/api/products` | GET | 获取在售商品列表 | ❌ |
+| `/api/products/:id` | GET | 获取商品详情 | ❌ |
+| `/api/products` | POST | 发布商品 | ✅ |
+| `/api/products/:id` | PUT | 编辑商品 | ✅ |
+| `/api/my-products` | GET | 获取我的商品列表 | ✅ |
+| `/api/products/:id/off` | PUT | 下架商品 | ✅ |
+| `/api/products/:id/on` | PUT | 重新上架 | ✅ |
+
+### 购物车相关
+| 接口 | 方法 | 说明 | 是否需要登录 |
+| :--- | :--- | :--- | :--- |
+| `/api/cart` | GET | 获取购物车 | ✅ |
+| `/api/cart` | POST | 添加到购物车 | ✅ |
+| `/api/cart/:id` | PUT | 更新购物车项 | ✅ |
+| `/api/cart/:id` | DELETE | 删除购物车项 | ✅ |
+
+### 订单相关
+| 接口 | 方法 | 说明 | 是否需要登录 |
+| :--- | :--- | :--- | :--- |
+| `/api/orders` | GET | 获取订单列表 | ✅ |
+| `/api/orders` | POST | 创建订单 | ✅ |
+| `/api/orders/:id` | PUT | 更新订单状态 | ✅ |
+| `/api/orders/:id/cancel` | PUT | 取消订单 | ✅ |
+| `/api/orders/:id/refund` | PUT | 处理退款 | ✅ |
